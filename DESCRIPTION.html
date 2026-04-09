@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SnipHive - Secure Code Snippet Manager</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        h1 {
+            color: #2c3e50;
+            border-bottom: 3px solid #3498db;
+            padding-bottom: 10px;
+        }
+        h2 {
+            color: #34495e;
+            margin-top: 30px;
+        }
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin: 20px 0;
+        }
+        .feature-card {
+            background: #f8f9fa;
+            border-left: 4px solid #3498db;
+            padding: 15px;
+            border-radius: 4px;
+        }
+        .feature-card h3 {
+            margin-top: 0;
+            color: #2c3e50;
+        }
+        .security-note {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            border-radius: 4px;
+            padding: 15px;
+            margin: 20px 0;
+        }
+        .security-note h3 {
+            margin-top: 0;
+            color: #856404;
+        }
+        .shortcut-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+        .shortcut-table th, .shortcut-table td {
+            border: 1px solid #ddd;
+            padding: 10px;
+            text-align: left;
+        }
+        .shortcut-table th {
+            background-color: #f2f2f2;
+        }
+        code {
+            background-color: #f4f4f4;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Monaco', 'Consolas', monospace;
+        }
+        .supported-ides {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin: 15px 0;
+        }
+        .ide-badge {
+            background: #e8f4f8;
+            color: #2980b9;
+            padding: 5px 12px;
+            border-radius: 15px;
+            font-size: 0.9em;
+        }
+        .cta-button {
+            display: inline-block;
+            background: #3498db;
+            color: white;
+            padding: 12px 24px;
+            text-decoration: none;
+            border-radius: 4px;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+        .cta-button:hover {
+            background: #2980b9;
+        }
+        ul {
+            padding-left: 20px;
+        }
+        li {
+            margin: 8px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>🐝 SnipHive for JetBrains</h1>
+
+    <p><strong>A secure, end-to-end encrypted code snippet manager for JetBrains IDEs.</strong></p>
+
+    <p>Access your SnipHive code snippets directly in your JetBrains IDE with full E2EE support. Create, browse, and insert snippets without leaving your development environment.</p>
+
+    <a href="https://sniphive.com" class="cta-button">Get Started at sniphive.com</a>
+
+    <h2>✨ Features</h2>
+
+    <div class="feature-grid">
+        <div class="feature-card">
+            <h3>Tool Window</h3>
+            <p>Browse and search your snippets in a dedicated tool window with powerful filtering options.</p>
+        </div>
+        <div class="feature-card">
+            <h3>Create from Selection</h3>
+            <p>Instantly create snippets from selected code with <code>Shift+Alt+S</code>.</p>
+        </div>
+        <div class="feature-card">
+            <h3>Insert Snippets</h3>
+            <p>Insert snippets via action menu, keyboard shortcut, or intelligent code completion.</p>
+        </div>
+        <div class="feature-card">
+            <h3>End-to-End Encryption</h3>
+            <p>Client-side encryption using RSA-4096 OAEP + AES-256-GCM. Your keys never leave your device.</p>
+        </div>
+    </div>
+
+    <h2>🔐 Security</h2>
+
+    <div class="security-note">
+        <h3>🛡️ Enterprise-Grade Encryption</h3>
+        <p>SnipHive uses industry-standard end-to-end encryption:</p>
+        <ul>
+            <li><strong>RSA-4096 OAEP</strong> for secure key exchange</li>
+            <li><strong>AES-256-GCM</strong> for content encryption with authenticated encryption</li>
+            <li><strong>PBKDF2</strong> with 600,000 iterations for key derivation (OWASP recommended)</li>
+            <li>Your encryption keys never leave your device</li>
+            <li>Server never sees your plaintext content</li>
+        </ul>
+    </div>
+
+    <h2>⌨️ Keyboard Shortcuts</h2>
+
+    <table class="shortcut-table">
+        <thead>
+            <tr>
+                <th>Action</th>
+                <th>Shortcut</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>Create Snippet from Selection</td>
+                <td><code>Shift+Alt+S</code></td>
+            </tr>
+            <tr>
+                <td>Insert Snippet</td>
+                <td><code>Shift+Alt+I</code></td>
+            </tr>
+            <tr>
+                <td>Open SnipHive Tool Window</td>
+                <td><code>View → Tool Windows → SnipHive</code></td>
+            </tr>
+        </tbody>
+    </table>
+
+    <h2>💻 Supported IDEs</h2>
+
+    <div class="supported-ides">
+        <span class="ide-badge">IntelliJ IDEA</span>
+        <span class="ide-badge">PhpStorm</span>
+        <span class="ide-badge">PyCharm</span>
+        <span class="ide-badge">WebStorm</span>
+        <span class="ide-badge">RubyMine</span>
+        <span class="ide-badge">GoLand</span>
+        <span class="ide-badge">CLion</span>
+        <span class="ide-badge">Rider</span>
+        <span class="ide-badge">DataGrip</span>
+        <span class="ide-badge">AppCode</span>
+        <span class="ide-badge">Android Studio</span>
+    </div>
+
+    <p><strong>Minimum Version:</strong> 2023.2</p>
+
+    <h2>🚀 Getting Started</h2>
+
+    <ol>
+        <li><strong>Install the Plugin:</strong> Go to Settings → Plugins and search for "SnipHive"</li>
+        <li><strong>Create an Account:</strong> Visit <a href="https://sniphive.com">sniphive.com</a> to sign up</li>
+        <li><strong>Login:</strong> Open the SnipHive tool window and click "Login"</li>
+        <li><strong>Setup E2EE (Optional):</strong> Go to SnipHive → Setup E2EE to enable end-to-end encryption</li>
+        <li><strong>Start Creating:</strong> Select code and press <code>Shift+Alt+S</code> to create your first snippet!</li>
+    </ol>
+
+    <h2>🔍 Usage Examples</h2>
+
+    <h3>Creating a Snippet</h3>
+    <ul>
+        <li>Select code in your editor</li>
+        <li>Right-click and choose <strong>Create Snippet</strong></li>
+        <li>Enter title, select language and tags</li>
+        <li>Click <strong>Create</strong></li>
+    </ul>
+
+    <h3>Inserting a Snippet</h3>
+    <ul>
+        <li>Position cursor where you want to insert</li>
+        <li>Right-click and choose <strong>Insert Snippet...</strong> or press <code>Shift+Alt+I</code></li>
+        <li>Search and select a snippet</li>
+        <li>Click <strong>Insert</strong></li>
+    </ul>
+
+    <h3>Code Completion</h3>
+    <ul>
+        <li>Start typing a snippet title (2+ characters)</li>
+        <li>Select from the completion suggestions</li>
+        <li>The snippet content is automatically inserted</li>
+    </ul>
+
+    <h2>⚙️ Configuration</h2>
+
+    <p>Access plugin settings via <strong>Settings → Tools → SnipHive</strong>:</p>
+    <ul>
+        <li><strong>API Configuration:</strong> Custom API URL for self-hosted deployments</li>
+        <li><strong>Workspace:</strong> Select your workspace (if you have multiple)</li>
+        <li><strong>Display Options:</strong> Show/hide encrypted content placeholders</li>
+        <li><strong>Auto-Refresh:</strong> Configure automatic refresh interval</li>
+        <li><strong>Code Completion:</strong> Configure completion behavior</li>
+    </ul>
+
+    <h2>🔒 Anonymous Sharing Security</h2>
+
+    <div class="security-note">
+        <h3>⚠️ Important Security Notice</h3>
+        <p>When copying public URLs for encrypted snippets:</p>
+        <ul>
+            <li>The URL contains an encryption key (DEK) in the hash fragment</li>
+            <li>Anyone with the URL can decrypt and view the content</li>
+            <li>Share via secure channels only (avoid email, chat)</li>
+            <li>URL will be visible in recipient's browser history</li>
+        </ul>
+    </div>
+
+    <h2>🔒 Privacy & Data</h2>
+
+    <ul>
+        <li><strong>End-to-End Encryption:</strong> Your encrypted snippets are stored on SnipHive servers, but the server cannot decrypt them</li>
+        <li><strong>Local Storage:</strong> Credentials and keys are stored in your IDE's Password Safe (encrypted local storage)</li>
+        <li><strong>No Tracking:</strong> No usage analytics or telemetry</li>
+        <li><strong>Open Source:</strong> The plugin code is open source for security audits</li>
+    </ul>
+
+    <h2>📚 Resources</h2>
+
+    <ul>
+        <li><strong>Website:</strong> <a href="https://sniphive.com">sniphive.com</a></li>
+        <li><strong>Documentation:</strong> <a href="https://docs.sniphive.com">docs.sniphive.com</a></li>
+        <li><strong>GitHub:</strong> <a href="https://github.com/yourorg/sniphive">github.com/yourorg/sniphive</a></li>
+        <li><strong>Support:</strong> <a href="mailto:support@sniphive.com">support@sniphive.com</a></li>
+    </ul>
+
+    <hr>
+
+    <p><em>SnipHive - Secure your code, share your knowledge.</em></p>
+</body>
+</html>

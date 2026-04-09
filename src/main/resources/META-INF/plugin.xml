@@ -1,0 +1,173 @@
+<!-- Plugin descriptor for SnipHive JetBrains IDE Extension -->
+<idea-plugin>
+    <!-- Plugin identity -->
+    <id>com.sniphive.intellij</id>
+    <name>SnipHive</name>
+    <vendor email="support@sniphive.net" url="https://sniphive.net">SnipHive</vendor>
+
+    <!-- Plugin description -->
+    <description>
+        <![CDATA[
+        <p>Access your SnipHive code snippets directly in your JetBrains IDE.</p>
+        <p>Features:</p>
+        <ul>
+            <li>Tool window for browsing and searching snippets and notes</li>
+            <li>Create snippets from selected code</li>
+            <li>Insert snippets via menu or code completion</li>
+            <li>Notes support with Markdown</li>
+            <li>Favorites and Archive views</li>
+            <li>Tags management with colors</li>
+            <li>Workspace switching</li>
+            <li>GitHub Gist import</li>
+            <li>Secure credential storage using IDE Password Safe</li>
+            <li>End-to-end encryption support (E2EE) with client-side encryption</li>
+            <li>Support for all JetBrains IDEs (IntelliJ IDEA, PhpStorm, PyCharm, WebStorm, etc.)</li>
+        </ul>
+        <p><b>Security Note:</b> E2EE uses RSA-4096 OAEP + AES-256-GCM encryption. Your encryption keys never leave your device.</p>
+        ]]>
+    </description>
+
+    <!-- Plugin version and compatibility -->
+    <version>0.2.0</version>
+    <change-notes>
+        <![CDATA[
+        <h3>0.2.0</h3>
+        <ul>
+            <li>Notes support - create, edit, delete, pin, favorite</li>
+            <li>Favorites view - unified view of favorite snippets and notes</li>
+            <li>Archive view - restore or permanently delete archived items</li>
+            <li>Tags management - create, edit, delete tags with colors</li>
+            <li>Workspace selector - switch between workspaces</li>
+            <li>GitHub Gist import - import gists as snippets</li>
+            <li>Enhanced search with filters</li>
+        </ul>
+        <h3>0.1.0</h3>
+        <ul>
+            <li>Initial release</li>
+            <li>Tool window for snippet browsing</li>
+            <li>Create snippet from selection</li>
+            <li>Insert snippet via code completion</li>
+            <li>E2EE support with secure credential storage</li>
+        </ul>
+        ]]>
+    </change-notes>
+
+    <!-- Product and plugin icons -->
+    <idea-version since-build="232" until-build="241.*"/>
+
+    <!-- Dependencies -->
+    <depends>com.intellij.modules.platform</depends>
+
+    <!-- Extensions -->
+    <extensions defaultExtensionNs="com.intellij">
+        <!-- Notification group for toast messages -->
+        <notificationGroup id="SnipHive Notifications" displayType="BALLOON"/>
+
+        <!-- Application services -->
+        <applicationService serviceImplementation="com.sniphive.idea.services.SnipHiveAuthService"/>
+        <applicationService serviceImplementation="com.sniphive.idea.services.SnipHiveApiClient"/>
+        <applicationService serviceImplementation="com.sniphive.idea.services.SnipHiveApiService"/>
+        <applicationService serviceImplementation="com.sniphive.idea.services.SecureCredentialStorage"/>
+
+        <!-- Persistent settings -->
+        <applicationConfigurable
+            parentId="tools"
+            instance="com.sniphive.idea.config.SnipHiveSettingsConfigurable"
+            id="com.sniphive.idea.config.SnipHiveSettingsConfigurable"
+            displayName="SnipHive"/>
+
+        <!-- Tool window -->
+        <toolWindow
+            id="SnipHive"
+            factoryClass="com.sniphive.idea.toolwindow.SnipHiveToolWindowFactory"
+            anchor="right"
+            icon="/icons/sniphive_toolwindow.svg"/>
+
+        <!-- Code completion provider -->
+        <completion.contributor
+            language="any"
+            implementationClass="com.sniphive.idea.completion.SnippetCompletionProvider"
+            order="before default"/>
+
+        <!-- Project component for project-specific services -->
+        <projectService serviceImplementation="com.sniphive.idea.services.SnippetLookupService"/>
+        <projectService serviceImplementation="com.sniphive.idea.services.NoteLookupService"/>
+
+        <!-- Status bar widget -->
+        <statusBarWidgetFactory id="SnipHiveStatusBar"
+                                implementation="com.sniphive.idea.status.SnipHiveStatusBarWidgetFactory"
+                                order="after Position"/>
+
+        <!-- Custom editors for snippets and notes -->
+        <fileEditorProvider implementation="com.sniphive.idea.editor.SnippetEditorProvider"/>
+        <fileEditorProvider implementation="com.sniphive.idea.editor.NoteEditorProvider"/>
+    </extensions>
+
+    <!-- Actions -->
+    <actions>
+        <!-- Create snippet from selection -->
+        <action id="com.sniphive.idea.actions.CreateSnippetAction"
+                class="com.sniphive.idea.actions.CreateSnippetAction"
+                text="Create Snippet"
+                description="Create a new SnipHive snippet from selected code">
+            <add-to-group group-id="EditorPopupMenu" anchor="first"/>
+            <add-to-group group-id="ProjectViewPopupMenu" anchor="after" relative-to-action="EditSource"/>
+            <keyboard-shortcut keymap="$default" first-keystroke="shift alt S"/>
+        </action>
+
+        <!-- Insert snippet via menu -->
+        <action id="com.sniphive.idea.actions.InsertSnippetAction"
+                class="com.sniphive.idea.actions.InsertSnippetAction"
+                text="Insert Snippet..."
+                description="Insert a SnipHive snippet at cursor position">
+            <add-to-group group-id="EditorPopupMenu" anchor="after" relative-to-action="com.sniphive.idea.actions.CreateSnippetAction"/>
+            <add-to-group group-id="GenerateGroup" anchor="last"/>
+            <keyboard-shortcut keymap="$default" first-keystroke="shift alt I"/>
+        </action>
+
+        <!-- SnipHive menu group -->
+        <group id="SnipHive.Menu" text="SnipHive" popup="true">
+            <reference ref="com.sniphive.idea.actions.CreateSnippetAction"/>
+            <reference ref="com.sniphive.idea.actions.InsertSnippetAction"/>
+
+            <separator/>
+            <action id="com.sniphive.idea.actions.RefreshSnippetsAction"
+                    class="com.sniphive.idea.actions.RefreshSnippetsAction"
+                    text="Refresh Snippets"
+                    description="Refresh snippet list from server"/>
+
+            <action id="com.sniphive.idea.actions.OpenE2EESetupAction"
+                    class="com.sniphive.idea.actions.OpenE2EESetupAction"
+                    text="Setup E2EE..."
+                    description="Setup end-to-end encryption"/>
+
+            <action id="com.sniphive.idea.actions.ManageTagsAction"
+                    class="com.sniphive.idea.actions.ManageTagsAction"
+                    text="Manage Tags..."
+                    description="Create, edit, and delete tags"/>
+
+            <action id="com.sniphive.idea.actions.GistImportAction"
+                    class="com.sniphive.idea.actions.GistImportAction"
+                    text="Import GitHub Gist..."
+                    description="Import a GitHub Gist as snippets"/>
+
+            <action id="com.sniphive.idea.actions.ShowRecentSnippetsAction"
+                    class="com.sniphive.idea.actions.ShowRecentSnippetsAction"
+                    text="Recent Snippets"
+                    description="Show recently used snippets">
+                <keyboard-shortcut keymap="$default" first-keystroke="ctrl shift E"/>
+            </action>
+
+            <separator/>
+            <action id="com.sniphive.idea.actions.OpenSnipHiveSettingsAction"
+                    class="com.sniphive.idea.actions.OpenSnipHiveSettingsAction"
+                    text="Settings..."
+                    description="Open SnipHive settings"/>
+
+            <add-to-group group-id="MainMenu" anchor="after" relative-to-action="ToolsMenu"/>
+        </group>
+    </actions>
+
+    <!-- Additional IDE-specific configurations -->
+    <!-- These files will be created if specific language support is needed -->
+</idea-plugin>

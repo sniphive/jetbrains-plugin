@@ -1,0 +1,12 @@
+.DS_Store
+.gradle
+.idea
+.intellijPlatform
+.kotlin
+!gradle/wrapper/gradle-wrapper.jar
+build
+
+.kanban
+.opencode
+.memory
+AGENTS.md
