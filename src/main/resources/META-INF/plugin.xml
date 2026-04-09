@@ -1,7 +1,7 @@
 <!-- Plugin descriptor for SnipHive JetBrains IDE Extension -->
 <idea-plugin>
     <!-- Plugin identity -->
-    <id>com.sniphive.intellij</id>
+    <id>net.sniphive.plugin</id>
     <name>SnipHive</name>
     <vendor email="support@sniphive.net" url="https://sniphive.net">SnipHive</vendor>
 
