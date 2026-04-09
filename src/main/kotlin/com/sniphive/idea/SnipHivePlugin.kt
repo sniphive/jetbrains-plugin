@@ -28,7 +28,7 @@ class SnipHivePlugin private constructor() {
          * Get the plugin version from plugin.xml
          */
         @JvmStatic
-        val pluginVersion: String = "0.1.0"
+        val pluginVersion: String = "1.0.0"
 
         /**
          * Get the plugin ID
