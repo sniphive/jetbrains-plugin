@@ -9,6 +9,7 @@ import com.intellij.ui.components.JBTextField
 import com.intellij.ui.components.panels.VerticalLayout
 import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.UIUtil
+import com.intellij.ide.BrowserUtil
 import com.sniphive.idea.config.SnipHiveSettings
 import com.sniphive.idea.services.SnipHiveAuthService
 import com.sniphive.idea.services.SnipHiveAuthService.LoginResult
@@ -57,6 +58,21 @@ class LoginDialog(private val project: Project) : DialogWrapper(true) {
          * Minimum password length for validation.
          */
         private const val MIN_PASSWORD_LENGTH = 1
+
+        /**
+         * Registration URL for new users.
+         */
+        private const val REGISTER_URL = "https://sniphive.net/register"
+
+        /**
+         * Register action that opens the registration page in the system browser.
+         */
+        private class RegisterAction : AbstractAction("Register") {
+            override fun actionPerformed(e: ActionEvent?) {
+                LOG.debug("Opening registration page: $REGISTER_URL")
+                BrowserUtil.browse(REGISTER_URL)
+            }
+        }
     }
 
     // UI Components
@@ -309,6 +325,17 @@ class LoginDialog(private val project: Project) : DialogWrapper(true) {
         emailField.text = ""
         passwordField.text = ""
         hideError()
+    }
+
+    /**
+     * Create left side actions for the dialog.
+     * This adds a "Register" button for new users to create an account.
+     *
+     * @return Array of action buttons to display on the left side
+     */
+    override fun createLeftSideActions(): Array<AbstractAction> {
+        LOG.debug("Creating left side actions with Register button")
+        return arrayOf(RegisterAction())
     }
 
     /**
