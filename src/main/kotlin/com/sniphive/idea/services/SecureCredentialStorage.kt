@@ -101,16 +101,14 @@ class SecureCredentialStorage {
             // Verify storage by immediately retrieving
             val retrieved = PasswordSafe.instance.get(createAttributes(key))
             
-            if (retrieved != null) {
-            }
-
-            // FIX: Return false if verification failed
+            // Log if verification failed but still return true since we have it in memory cache
             if (retrieved == null) {
-                // Still return true since we have it in memory cache
+                LOG.warn("Auth token storage verification failed for $normalizedEmail, but token is cached in memory")
             }
 
             true
         } catch (e: Exception) {
+            LOG.error("Failed to store authentication token for $email", e)
             false
         }
     }
@@ -158,7 +156,7 @@ class SecureCredentialStorage {
 
             null
         } catch (e: Exception) {
-            LOG.warn("Error retrieving auth token: ${e.message}")
+            LOG.error("Failed to retrieve authentication token for $email", e)
             null
         }
     }
@@ -259,6 +257,7 @@ class SecureCredentialStorage {
             PasswordSafe.instance.set(createAttributes(key), null)
             true
         } catch (e: Exception) {
+            LOG.error("Failed to remove authentication token for $email", e)
             false
         }
     }
