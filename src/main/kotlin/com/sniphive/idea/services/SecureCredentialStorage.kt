@@ -43,27 +43,51 @@ class SecureCredentialStorage {
 
     fun storeAuthToken(project: Project?, email: String, token: String): Boolean {
         return try {
+            LOG.info("[DEBUG] storeAuthToken: Called for email='$email', project=${project?.name}, token length=${token.length}")
             val key = "$AUTH_TOKEN_PREFIX${email.lowercase()}"
+            LOG.debug("[DEBUG] storeAuthToken: Storing with key='$key' in PasswordSafe")
+
             PasswordSafe.instance.set(createAttributes(key), Credentials(email, token))
-            LOG.debug("Authentication token stored successfully for user: ${email.lowercase()}")
+            LOG.info("[DEBUG] storeAuthToken: Token stored successfully for user: ${email.lowercase()}")
+
+            // Verify storage by immediately retrieving
+            LOG.debug("[DEBUG] storeAuthToken: Verifying storage by retrieving...")
+            val retrieved = PasswordSafe.instance.get(createAttributes(key))
+            LOG.debug("[DEBUG] storeAuthToken: Verification result: ${if (retrieved != null) "SUCCESS - token found" else "FAILED - token not found"}")
+
+            // FIX: Return false if verification failed
+            if (retrieved == null) {
+                LOG.error("[DEBUG] storeAuthToken: Token stored but verification failed!")
+                return false
+            }
+
             true
         } catch (e: Exception) {
-            LOG.error("Failed to store authentication token for user $email", e)
+            LOG.error("[DEBUG] storeAuthToken: Failed to store authentication token for user $email", e)
             false
         }
     }
 
     fun getAuthToken(project: Project?, email: String): String? {
         return try {
+            LOG.info("[DEBUG] getAuthToken: Called for email='$email', project=${project?.name}")
             val key = "$AUTH_TOKEN_PREFIX${email.lowercase()}"
+            LOG.debug("[DEBUG] getAuthToken: Looking for key='$key' in PasswordSafe")
+
             val credentials = PasswordSafe.instance.get(createAttributes(key))
+            LOG.debug("[DEBUG] getAuthToken: Credentials from PasswordSafe: ${if (credentials != null) "present" else "NULL"}")
+
             val token = credentials?.getPasswordAsString()
+            LOG.info("[DEBUG] getAuthToken: Token result: ${if (token != null) "present (${token.length} chars)" else "NULL"}")
+
             if (token != null) {
                 LOG.debug("Authentication token retrieved successfully for user: ${email.lowercase()}")
+            } else {
+                LOG.warn("[DEBUG] getAuthToken: No token found for user: ${email.lowercase()}")
             }
             token
         } catch (e: Exception) {
-            LOG.error("Failed to retrieve authentication token for user $email", e)
+            LOG.error("[DEBUG] getAuthToken: Failed to retrieve authentication token for user $email", e)
             null
         }
     }
