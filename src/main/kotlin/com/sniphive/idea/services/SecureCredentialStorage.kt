@@ -38,7 +38,7 @@ class SecureCredentialStorage {
     }
 
     private fun createAttributes(key: String): CredentialAttributes {
-        return CredentialAttributes("$SERVICE_NAME:$key")
+        return CredentialAttributes(SERVICE_NAME, key)
     }
 
     fun storeAuthToken(project: Project?, email: String, token: String): Boolean {

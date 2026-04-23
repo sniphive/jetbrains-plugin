@@ -15,6 +15,7 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.UserDataHolderBase
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.ui.EditorTextField
+import com.intellij.ui.DocumentAdapter
 import com.intellij.ui.JBColor
 import com.intellij.util.ui.JBUI
 import com.sniphive.idea.services.SnipHiveApiService
@@ -114,10 +115,10 @@ class NoteEditor(
 
     private fun setupListeners() {
         // Title changes
-        titleField.document.addDocumentListener(object : javax.swing.event.DocumentListener {
-            override fun insertUpdate(e: javax.swing.event.DocumentEvent?) = onTitleChanged()
-            override fun removeUpdate(e: javax.swing.event.DocumentEvent?) = onTitleChanged()
-            override fun changedUpdate(e: javax.swing.event.DocumentEvent?) = onTitleChanged()
+        titleField.document.addDocumentListener(object : DocumentAdapter() {
+            override fun textChanged(e: javax.swing.event.DocumentEvent) {
+                onTitleChanged()
+            }
         })
 
         // Checkbox changes

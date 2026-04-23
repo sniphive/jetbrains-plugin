@@ -7,6 +7,7 @@ import com.intellij.openapi.ui.VerticalFlowLayout
 import com.intellij.ui.components.JBCheckBox
 import com.intellij.ui.components.JBTextField
 import com.intellij.ui.components.JBLabel
+import com.intellij.ui.DocumentAdapter
 import javax.swing.JComponent
 import javax.swing.JPanel
 
@@ -281,22 +282,22 @@ class SnipHiveSettingsConfigurable : Configurable {
         enableCodeCompletionCheckBox.addActionListener { updateFieldStates() }
 
         // Add document listeners for validation
-        autoRefreshIntervalField.document.addDocumentListener(object : javax.swing.event.DocumentListener {
-            override fun insertUpdate(e: javax.swing.event.DocumentEvent) = validateIntervalField()
-            override fun removeUpdate(e: javax.swing.event.DocumentEvent) = validateIntervalField()
-            override fun changedUpdate(e: javax.swing.event.DocumentEvent) = validateIntervalField()
+        autoRefreshIntervalField.document.addDocumentListener(object : DocumentAdapter() {
+            override fun textChanged(e: javax.swing.event.DocumentEvent) {
+                validateIntervalField()
+            }
         })
 
-        codeCompletionMinPrefixLengthField.document.addDocumentListener(object : javax.swing.event.DocumentListener {
-            override fun insertUpdate(e: javax.swing.event.DocumentEvent) = validatePrefixLengthField()
-            override fun removeUpdate(e: javax.swing.event.DocumentEvent) = validatePrefixLengthField()
-            override fun changedUpdate(e: javax.swing.event.DocumentEvent) = validatePrefixLengthField()
+        codeCompletionMinPrefixLengthField.document.addDocumentListener(object : DocumentAdapter() {
+            override fun textChanged(e: javax.swing.event.DocumentEvent) {
+                validatePrefixLengthField()
+            }
         })
 
-        codeCompletionMaxSuggestionsField.document.addDocumentListener(object : javax.swing.event.DocumentListener {
-            override fun insertUpdate(e: javax.swing.event.DocumentEvent) = validateMaxSuggestionsField()
-            override fun removeUpdate(e: javax.swing.event.DocumentEvent) = validateMaxSuggestionsField()
-            override fun changedUpdate(e: javax.swing.event.DocumentEvent) = validateMaxSuggestionsField()
+        codeCompletionMaxSuggestionsField.document.addDocumentListener(object : DocumentAdapter() {
+            override fun textChanged(e: javax.swing.event.DocumentEvent) {
+                validateMaxSuggestionsField()
+            }
         })
     }
 

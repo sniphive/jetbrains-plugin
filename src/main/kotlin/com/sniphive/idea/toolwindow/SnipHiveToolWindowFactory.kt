@@ -8,10 +8,12 @@ import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.wm.ToolWindow
 import com.intellij.openapi.wm.ToolWindowFactory
+import com.intellij.ide.BrowserUtil
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBPasswordField
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.components.JBTextField
+import com.intellij.ui.DocumentAdapter
 import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.UIUtil
 import com.sniphive.idea.config.SnipHiveSettings
@@ -600,12 +602,8 @@ class SnipHiveToolWindowFactory : ToolWindowFactory {
     ) {
         // Search listener with debounce
         var searchTimer: Timer? = null
-        searchField.document.addDocumentListener(object : javax.swing.event.DocumentListener {
-            override fun insertUpdate(e: javax.swing.event.DocumentEvent) = scheduleSearch()
-            override fun removeUpdate(e: javax.swing.event.DocumentEvent) = scheduleSearch()
-            override fun changedUpdate(e: javax.swing.event.DocumentEvent) = scheduleSearch()
-
-            private fun scheduleSearch() {
+        searchField.document.addDocumentListener(object : DocumentAdapter() {
+            override fun textChanged(e: javax.swing.event.DocumentEvent) {
                 searchTimer?.stop()
                 searchTimer = Timer(300) {
                     filterNotes(project, searchField.text, listPanel)
@@ -1123,8 +1121,20 @@ class SnipHiveToolWindowFactory : ToolWindowFactory {
         val loginButton = JButton("Login")
         loginButton.toolTipText = "Login to SnipHive"
 
+        // Register button
+        val registerButton = JButton("Register")
+        registerButton.toolTipText = "Create a new SnipHive account"
+
         val buttonPanel = JPanel(FlowLayout(FlowLayout.CENTER))
         buttonPanel.add(loginButton)
+        buttonPanel.add(Box.createHorizontalStrut(10))
+        buttonPanel.add(registerButton)
+
+        // Register action - opens registration page in browser
+        registerButton.addActionListener {
+            LOG.debug("Opening registration page: https://sniphive.net/register")
+            BrowserUtil.browse("https://sniphive.net/register")
+        }
 
         gbc.gridx = 0
         gbc.gridy = 3

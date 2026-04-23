@@ -328,13 +328,13 @@ class LoginDialog(private val project: Project) : DialogWrapper(true) {
     }
 
     /**
-     * Create left side actions for the dialog.
+     * Create left actions for the dialog.
      * This adds a "Register" button for new users to create an account.
      *
      * @return Array of action buttons to display on the left side
      */
     override fun createLeftSideActions(): Array<AbstractAction> {
-        LOG.debug("Creating left side actions with Register button")
+        LOG.debug("Creating left actions with Register button")
         return arrayOf(RegisterAction())
     }
 
