@@ -7,6 +7,10 @@ import com.intellij.openapi.components.Service
 import com.intellij.openapi.components.service
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
+import java.util.concurrent.CompletableFuture
+import java.util.concurrent.Executors
+import java.util.concurrent.ScheduledExecutorService
+import java.util.concurrent.TimeUnit
 
 /**
  * Secure credential storage service using IDE Password Safe.
@@ -16,6 +20,13 @@ class SecureCredentialStorage {
 
     companion object {
         private val LOG = Logger.getInstance(SecureCredentialStorage::class.java)
+
+        // TSK-004: Non-blocking retry scheduler - schedules retries without blocking threads
+        private val RETRY_SCHEDULER: ScheduledExecutorService = Executors.newSingleThreadScheduledExecutor { r ->
+            val thread = Thread(r, "SnipHive-CredentialRetry")
+            thread.isDaemon = true  // Daemon thread - won't prevent JVM shutdown
+            thread
+        }
 
         // In-memory token cache with LRU eviction to prevent memory leaks
         private val tokenCache = LinkedHashMap<String, String>()
@@ -104,52 +115,136 @@ class SecureCredentialStorage {
         }
     }
 
-fun getAuthToken(project: Project?, email: String): String? {
+/**
+     * TSK-004: Synchronous version - NO retry logic to avoid Thread.sleep blocking.
+     *
+     * This method performs a single attempt without retries. For retry logic,
+     * use getAuthTokenAsync() which uses non-blocking ScheduledExecutorService.
+     *
+     * Use this method only when:
+     * - You need immediate synchronous result
+     * - You're already on a background thread
+     * - Retry logic is not critical
+     *
+     * For EDT operations or when retries are needed, use getAuthTokenAsync().
+     *
+     * @param project The project context (can be null)
+     * @param email The user's email address
+     * @return The auth token if found in cache or PasswordSafe, null otherwise
+     */
+    fun getAuthToken(project: Project?, email: String): String? {
         return try {
             val normalizedEmail = email.lowercase().trim()
-            
+
             // Check memory cache first (PasswordSafe has timing issues)
             val cachedToken = tokenCache[normalizedEmail]
             if (cachedToken != null) {
                 return cachedToken
             }
-            
+
             val key = "$AUTH_TOKEN_PREFIX$normalizedEmail"
 
-            // Retry mechanism with exponential backoff - PasswordSafe might have timing issues
-            var credentials: Credentials? = null
-            var retryCount = 0
-            val maxRetries = 3
-            var backoffMs = 50L  // Initial backoff (TSK-004: exponential backoff)
-            
-            while (retryCount < maxRetries) {
-                credentials = PasswordSafe.instance.get(createAttributes(key))
-                
-                if (credentials != null) {
-                    // Cache it for future use using LRU mechanism
-                    val token = credentials.getPasswordAsString()
-                    if (token != null) {
-                        cacheToken(normalizedEmail, token)
-                    }
-                    break
+            // TSK-004: Single attempt only - no Thread.sleep blocking
+            // For retry logic, use getAuthTokenAsync() with non-blocking ScheduledExecutorService
+            val credentials = PasswordSafe.instance.get(createAttributes(key))
+
+            if (credentials != null) {
+                val token = credentials.getPasswordAsString()
+                if (token != null) {
+                    cacheToken(normalizedEmail, token)
                 }
-                
-                retryCount++
-                if (retryCount < maxRetries) {
-                    Thread.sleep(backoffMs)
-                    backoffMs *= 2  // Exponential backoff: 50ms -> 100ms -> 200ms
-                }
-            }
-            
-            if (credentials == null) {
-                return null
+                return token
             }
 
-            val token = credentials.getPasswordAsString()
-
-            token
-        } catch (e: Exception) {
             null
+        } catch (e: Exception) {
+            LOG.warn("Error retrieving auth token: ${e.message}")
+            null
+        }
+    }
+
+    /**
+     * TSK-004: Non-blocking async version of getAuthToken.
+     *
+     * Uses ScheduledExecutorService to schedule retries with exponential backoff delays,
+     * without blocking the calling thread. This is the recommended approach for IntelliJ
+     * plugins where blocking Thread.sleep can block EDT or pooled threads.
+     *
+     * @param project The project context (can be null)
+     * @param email The user's email address
+     * @return CompletableFuture<String?> that completes with the token or null
+     */
+    fun getAuthTokenAsync(project: Project?, email: String): CompletableFuture<String?> {
+        val result = CompletableFuture<String?>()
+        val normalizedEmail = email.lowercase().trim()
+
+        // Check memory cache first (PasswordSafe has timing issues)
+        val cachedToken = tokenCache[normalizedEmail]
+        if (cachedToken != null) {
+            result.complete(cachedToken)
+            return result
+        }
+
+        val key = "$AUTH_TOKEN_PREFIX$normalizedEmail"
+        val maxRetries = 3
+        val initialBackoffMs = 50L
+
+        // Attempt to get credentials immediately (first try)
+        attemptCredentialRetrieval(result, key, normalizedEmail, 0, maxRetries, initialBackoffMs)
+
+        return result
+    }
+
+    /**
+     * TSK-004: Internal helper for non-blocking credential retrieval with retries.
+     *
+     * Schedules retry attempts using RETRY_SCHEDULER instead of Thread.sleep.
+     * Each retry is scheduled with exponential backoff delay.
+     *
+     * @param result The CompletableFuture to complete
+     * @param key The credential key
+     * @param normalizedEmail The normalized email for caching
+     * @param currentRetry Current retry count (0-based)
+     * @param maxRetries Maximum retry attempts
+     * @param backoffMs Current backoff delay in milliseconds
+     */
+    private fun attemptCredentialRetrieval(
+        result: CompletableFuture<String?>,
+        key: String,
+        normalizedEmail: String,
+        currentRetry: Int,
+        maxRetries: Int,
+        backoffMs: Long
+    ) {
+        try {
+            val credentials = PasswordSafe.instance.get(createAttributes(key))
+
+            if (credentials != null) {
+                // Success - cache and complete
+                val token = credentials.getPasswordAsString()
+                if (token != null) {
+                    cacheToken(normalizedEmail, token)
+                }
+                result.complete(token)
+                return
+            }
+
+            // Credentials not found - schedule retry if we have attempts left
+            if (currentRetry < maxRetries - 1) {
+                val nextRetry = currentRetry + 1
+                val nextBackoffMs = backoffMs * 2  // Exponential backoff: 50ms -> 100ms -> 200ms
+
+                // Schedule retry without blocking thread
+                RETRY_SCHEDULER.schedule({
+                    attemptCredentialRetrieval(result, key, normalizedEmail, nextRetry, maxRetries, nextBackoffMs)
+                }, backoffMs, TimeUnit.MILLISECONDS)
+            } else {
+                // Max retries exhausted - complete with null
+                result.complete(null)
+            }
+        } catch (e: Exception) {
+            LOG.warn("Error retrieving credentials on retry $currentRetry: ${e.message}")
+            result.complete(null)
         }
     }
 
