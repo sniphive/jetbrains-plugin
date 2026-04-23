@@ -38,7 +38,6 @@ class SnipHiveAuthService {
 
     fun login(project: Project?, apiUrl: String, email: String, password: String): LoginResult {
         return try {
-            LOG.debug("Attempting login for user: ${email.lowercase()}")
 
             val apiClient = SnipHiveApiClient.getInstance()
             val secureStorage = SecureCredentialStorage.getInstance()
@@ -53,8 +52,10 @@ class SnipHiveAuthService {
                 responseType = LoginResponse::class.java
             )
 
+
             if (response.success && response.data != null) {
                 val loginData = response.data
+
                 val tokenStored = secureStorage.storeAuthToken(project, email, loginData.token)
 
                 if (tokenStored) {
@@ -64,11 +65,11 @@ class SnipHiveAuthService {
                         loginData.user?.name?.let { settings.setUserName(it) }
                         // Set first workspace as default if available
                         loginData.workspaces.firstOrNull()?.let { ws ->
-                            settings.setWorkspaceId(ws.uuid ?: ws.id.toString())
+                            val workspaceId = ws.uuid ?: ws.id.toString()
+                            settings.setWorkspaceId(workspaceId)
                         }
                     }
 
-                    LOG.info("Login successful for user: ${email.lowercase()}")
                     LoginResult(
                         success = true,
                         message = "Login successful",
@@ -76,17 +77,14 @@ class SnipHiveAuthService {
                         workspaces = loginData.workspaces
                     )
                 } else {
-                    LOG.error("Failed to store authentication token for user: ${email.lowercase()}")
                     LoginResult(success = false, message = "Failed to store authentication token securely")
                 }
             } else {
                 val errorMessage = response.error ?: "Login failed"
-                LOG.warn("Login failed for user ${email.lowercase()}: $errorMessage")
                 LoginResult(success = false, message = errorMessage)
             }
         } catch (e: Exception) {
-            LOG.error("Unexpected error during login for user ${email.lowercase()}", e)
-            LoginResult(success = false, message = "An unexpected error occurred during login")
+            LoginResult(success = false, message = "An unexpected error occurred during login: ${e.message}")
         }
     }
 

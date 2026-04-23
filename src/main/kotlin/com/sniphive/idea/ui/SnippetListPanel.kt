@@ -98,8 +98,6 @@ class SnippetListPanel(private val project: com.intellij.openapi.project.Project
     private var snippets: List<Snippet> = emptyList()
 
     init {
-        LOG.debug("Initializing SnippetListPanel for project: ${project.name}")
-
         layout = BorderLayout()
 
         cardPanel.layout = cardLayout
@@ -114,7 +112,6 @@ class SnippetListPanel(private val project: com.intellij.openapi.project.Project
 
         showLoadingState()
 
-        LOG.debug("SnippetListPanel initialized successfully")
     }
 
     /** Set the action handler for card button clicks. */
@@ -182,24 +179,22 @@ class SnippetListPanel(private val project: com.intellij.openapi.project.Project
     // ───────────────────────── State management ─────────────────────────
 
     fun showLoadingState() {
-        LOG.debug("Showing loading state")
         currentState = STATE_LOADING
         cardLayout.show(cardPanel, STATE_LOADING)
         cursor = Cursor.getPredefinedCursor(Cursor.WAIT_CURSOR)
     }
 
     fun showEmptyState() {
-        LOG.debug("Showing empty state")
         currentState = STATE_EMPTY
         cardLayout.show(cardPanel, STATE_EMPTY)
         cursor = Cursor.getDefaultCursor()
     }
 
     fun showErrorState(message: String? = null) {
-        LOG.warn("Showing error state: ${message ?: "Unknown error"}")
         currentState = STATE_ERROR
 
         if (message != null) {
+            LOG.warn("Showing error state: $message")
             updateErrorMessage(message)
         }
 
@@ -218,7 +213,6 @@ class SnippetListPanel(private val project: com.intellij.openapi.project.Project
     }
 
     private fun showPopulatedState() {
-        LOG.debug("Showing populated state with ${snippets.size} snippets")
         currentState = STATE_POPULATED
         cardLayout.show(cardPanel, STATE_POPULATED)
         cursor = Cursor.getDefaultCursor()
@@ -234,38 +228,37 @@ class SnippetListPanel(private val project: com.intellij.openapi.project.Project
 
     // ───────────────────────── List manipulation ─────────────────────────
 
-    fun setSnippets(snippets: List<Snippet>) {
-        LOG.debug("Setting ${snippets.size} snippets in list")
+fun setSnippets(snippets: List<Snippet>) {
         this.snippets = snippets
+
         rebuildCards()
 
-        if (snippets.isEmpty()) showEmptyState() else showPopulatedState()
+        if (snippets.isEmpty()) {
+            showEmptyState()
+        } else {
+            showPopulatedState()
+        }
 
-        LOG.debug("Snippets updated successfully")
     }
 
     fun addSnippet(snippet: Snippet) {
-        LOG.debug("Adding snippet: ${snippet.id}")
         snippets = snippets + snippet
         rebuildCards()
         if (currentState != STATE_POPULATED) showPopulatedState()
     }
 
     fun updateSnippet(snippet: Snippet) {
-        LOG.debug("Updating snippet: ${snippet.id}")
         snippets = snippets.map { if (it.id == snippet.id) snippet else it }
         rebuildCards()
     }
 
     fun removeSnippet(snippetId: String) {
-        LOG.debug("Removing snippet: $snippetId")
         snippets = snippets.filter { it.id != snippetId }
         rebuildCards()
         if (snippets.isEmpty()) showEmptyState()
     }
 
     fun clearSnippets() {
-        LOG.debug("Clearing all snippets")
         snippets = emptyList()
         rebuildCards()
         showEmptyState()

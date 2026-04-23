@@ -110,12 +110,11 @@ class SnippetLookupService(private val project: Project) {
      * Listeners will be notified when the refresh completes.
      */
     fun refreshSnippets() {
+
         if (isRefreshing) {
-            LOG.debug("Refresh already in progress, skipping")
             return
         }
 
-        LOG.info("Refreshing snippets from server")
         isRefreshing = true
         lastError = null
 
@@ -135,7 +134,6 @@ class SnippetLookupService(private val project: Project) {
                     lastRefreshTime = System.currentTimeMillis()
                 }
 
-                LOG.info("Snippet refresh completed: ${snippets.size} snippets loaded")
 
                 // Notify listeners on EDT
                 ApplicationManager.getApplication().invokeLater {

@@ -82,8 +82,6 @@ class SnipHiveToolWindowFactory : ToolWindowFactory {
     }
 
     override fun createToolWindowContent(project: Project, toolWindow: ToolWindow) {
-        LOG.debug("Creating SnipHive tool window content for project: ${project.name}")
-
         try {
             val settings = SnipHiveSettings.getInstance()
             val contentPanel = createContentPanel(project, settings, toolWindow)
@@ -94,7 +92,6 @@ class SnipHiveToolWindowFactory : ToolWindowFactory {
 
             toolWindow.contentManager.addContent(content)
 
-            LOG.info("SnipHive tool window created successfully for project: ${project.name}")
         } catch (e: Exception) {
             LOG.error("Failed to create SnipHive tool window content", e)
 
@@ -136,6 +133,7 @@ class SnipHiveToolWindowFactory : ToolWindowFactory {
         // Determine initial card based on auth and E2EE state
         // IMPORTANT: PasswordSafe operations must be off EDT to avoid SEVERE errors
         val userEmail = settings.getUserEmail()
+
         if (userEmail.isNotEmpty()) {
             // User is authenticated - show loading state initially
             // Show content card as loading placeholder while checking E2EE state
@@ -147,6 +145,7 @@ class SnipHiveToolWindowFactory : ToolWindowFactory {
                 try {
                     val secureStorage = SecureCredentialStorage.getInstance()
                     val existingPrivateKey = secureStorage.getPrivateKey(project, userEmail)
+
                     val storedMasterPassword = if (existingPrivateKey == null) {
                         secureStorage.getMasterPassword(project, userEmail)
                     } else null
@@ -960,8 +959,6 @@ class SnipHiveToolWindowFactory : ToolWindowFactory {
                         // Update E2EE state
                         settings.setE2eeUnlocked(true)
 
-                        LOG.info("E2EE unlocked successfully for user: ${settings.getUserEmail()}")
-
                         ApplicationManager.getApplication().invokeLater {
                             showCard(mainPanel, CARD_CONTENT)
                             onUnlockSuccess()
@@ -1024,7 +1021,6 @@ class SnipHiveToolWindowFactory : ToolWindowFactory {
         mainUnlockPanel.add(headerPanel, BorderLayout.NORTH)
         mainUnlockPanel.add(centerPanel, BorderLayout.CENTER)
 
-        LOG.debug("Master password panel created for SnipHive tool window")
         return mainUnlockPanel
     }
 
@@ -1039,10 +1035,12 @@ class SnipHiveToolWindowFactory : ToolWindowFactory {
         settings: SnipHiveSettings,
         callback: (Boolean) -> Unit
     ) {
+
         ApplicationManager.getApplication().executeOnPooledThread {
             try {
                 val apiService = SnipHiveApiService.getInstance()
                 val securityStatus = apiService.getSecurityStatus(project)
+
 
                 if (securityStatus != null && securityStatus.setupComplete && securityStatus.e2eeProfile != null) {
                     val privateKey = E2EECryptoService.unlockWithMasterPassword(masterPassword, securityStatus.e2eeProfile)
@@ -1055,8 +1053,10 @@ class SnipHiveToolWindowFactory : ToolWindowFactory {
                     // Update E2EE state
                     settings.setE2eeUnlocked(true)
 
-                    LOG.info("Auto-unlock successful for user: $email")
-                    ApplicationManager.getApplication().invokeLater { callback(true) }
+                    ApplicationManager.getApplication().invokeLater {
+                        showCard(mainPanel, CARD_CONTENT)
+                        callback(true)
+                    }
                 } else {
                     LOG.warn("E2EE not set up for user: $email")
                     ApplicationManager.getApplication().invokeLater { callback(false) }
@@ -1151,7 +1151,6 @@ class SnipHiveToolWindowFactory : ToolWindowFactory {
 
         // Register action - opens registration page in browser
         registerButton.addActionListener {
-            LOG.debug("Opening registration page: https://sniphive.net/register")
             BrowserUtil.browse("https://sniphive.net/register")
         }
 
@@ -1164,6 +1163,7 @@ class SnipHiveToolWindowFactory : ToolWindowFactory {
         loginButton.addActionListener {
             val email = emailField.text.trim()
             val password = String(passwordField.password)
+            
 
             if (email.isEmpty()) {
                 errorLabel.text = "Email is required"
@@ -1179,10 +1179,12 @@ class SnipHiveToolWindowFactory : ToolWindowFactory {
                 return@addActionListener
             }
 
+
             // Disable button and show loading
             loginButton.isEnabled = false
             loginButton.text = "Logging in..."
             errorLabel.isVisible = false
+
 
             // Perform login on background thread (PasswordSafe operations prohibited on EDT)
             ApplicationManager.getApplication().executeOnPooledThread {
@@ -1192,7 +1194,6 @@ class SnipHiveToolWindowFactory : ToolWindowFactory {
 
                     ApplicationManager.getApplication().invokeLater {
                         if (result.success) {
-                            LOG.info("Login successful for user: $email")
 
                             // Check E2EE status and redirect to appropriate card
                             checkE2EEAndRedirect(project, email, mainPanel, settings) { unlocked ->
@@ -1219,7 +1220,6 @@ class SnipHiveToolWindowFactory : ToolWindowFactory {
                         }
                     }
                 } catch (e: Exception) {
-                    LOG.error("Login error", e)
                     ApplicationManager.getApplication().invokeLater {
                         errorLabel.text = "An error occurred. Please try again."
                         errorLabel.isVisible = true
@@ -1241,7 +1241,6 @@ class SnipHiveToolWindowFactory : ToolWindowFactory {
         mainLoginPanel.add(headerPanel, BorderLayout.NORTH)
         mainLoginPanel.add(centerPanel, BorderLayout.CENTER)
 
-        LOG.debug("Login panel created for SnipHive tool window")
         return mainLoginPanel
     }
 
@@ -1259,8 +1258,6 @@ class SnipHiveToolWindowFactory : ToolWindowFactory {
         toolWindow: ToolWindow,
         mainPanel: JPanel
     ) {
-        LOG.debug("Performing logout")
-
         val email = settings.getUserEmail()
 
         // Clear E2EE session state
@@ -1277,7 +1274,6 @@ class SnipHiveToolWindowFactory : ToolWindowFactory {
 
                 ApplicationManager.getApplication().invokeLater {
                     if (success) {
-                        LOG.info("Logout successful for user: $email")
                         // Clear caches
                         SnippetLookupService.getInstance(project).clearCache()
                         NoteLookupService.getInstance(project).clearCache()
@@ -1323,20 +1319,24 @@ class SnipHiveToolWindowFactory : ToolWindowFactory {
         settings: SnipHiveSettings,
         onComplete: (Boolean) -> Unit
     ) {
+
         ApplicationManager.getApplication().executeOnPooledThread {
             try {
                 val apiService = SnipHiveApiService.getInstance()
                 val securityStatus = apiService.getSecurityStatus(project)
+
 
                 if (securityStatus != null && securityStatus.setupComplete) {
                     // Check if we already have the private key
                     val secureStorage = SecureCredentialStorage.getInstance()
                     val existingPrivateKey = secureStorage.getPrivateKey(project, email)
 
+
                     if (existingPrivateKey == null) {
                         // Need to unlock E2EE - show master password card
                         // Try auto-unlock with stored master password
                         val storedMasterPassword = secureStorage.getMasterPassword(project, email)
+
                         if (storedMasterPassword != null && securityStatus.e2eeProfile != null) {
                             try {
                                 val privateKey = E2EECryptoService.unlockWithMasterPassword(storedMasterPassword, securityStatus.e2eeProfile)
@@ -1344,13 +1344,11 @@ class SnipHiveToolWindowFactory : ToolWindowFactory {
                                 secureStorage.storePrivateKey(project, email, privateKeyJwk)
                                 settings.setE2eeUnlocked(true)
 
-                                LOG.info("Auto-unlock successful for user: $email")
                                 ApplicationManager.getApplication().invokeLater {
                                     showCard(mainPanel, CARD_CONTENT)
                                     onComplete(true)
                                 }
                             } catch (e: Exception) {
-                                LOG.warn("Auto-unlock failed, showing master password card")
                                 secureStorage.removeMasterPassword(project, email)
                                 ApplicationManager.getApplication().invokeLater {
                                     showCard(mainPanel, CARD_MASTER_PASSWORD)
@@ -1379,9 +1377,9 @@ class SnipHiveToolWindowFactory : ToolWindowFactory {
                         onComplete(true)
                     }
                 }
-            } catch (e: Exception) {
-                LOG.error("Failed to check E2EE status", e)
-                ApplicationManager.getApplication().invokeLater {
+} catch (e: Exception) {
+                    LOG.error("Login error", e)
+                    ApplicationManager.getApplication().invokeLater {
                     showCard(mainPanel, CARD_MASTER_PASSWORD)
                     onComplete(false)
                 }
