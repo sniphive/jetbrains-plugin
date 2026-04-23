@@ -363,7 +363,7 @@ class E2EESetupDialog(private val project: Project) : DialogWrapper(true) {
                     LOG.info("E2EE setup successful, switching to recovery code phase")
 
                     // Store credentials in secure storage
-                    val settings = SnipHiveSettings.getInstance(project)
+                    val settings = SnipHiveSettings.getInstance()
                     val email = settings.getUserEmail()
                     if (email.isEmpty()) {
                         LOG.warn("User email not found in settings")

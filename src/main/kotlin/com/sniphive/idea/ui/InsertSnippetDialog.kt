@@ -463,7 +463,7 @@ class InsertSnippetDialog(private val project: Project) : DialogWrapper(true) {
         tags: List<String>
     ): List<Snippet>? {
         return try {
-            val settings = SnipHiveSettings.getInstance(project)
+            val settings = SnipHiveSettings.getInstance()
             val apiUrl = settings.getApiUrl()
             val email = settings.getUserEmail()
             if (email.isEmpty()) return null
@@ -507,7 +507,7 @@ class InsertSnippetDialog(private val project: Project) : DialogWrapper(true) {
      */
     private fun fetchTags(): List<Tag>? {
         return try {
-            val settings = SnipHiveSettings.getInstance(project)
+            val settings = SnipHiveSettings.getInstance()
             val apiUrl = settings.getApiUrl()
             val email = settings.getUserEmail()
             if (email.isEmpty()) return null

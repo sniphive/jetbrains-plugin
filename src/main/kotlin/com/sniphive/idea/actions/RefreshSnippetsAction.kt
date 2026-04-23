@@ -34,7 +34,7 @@ class RefreshSnippetsAction : AnAction() {
 
         LOG.info("Refreshing snippets for project: ${project.name}")
 
-        val settings = SnipHiveSettings.getInstance(project)
+        val settings = SnipHiveSettings.getInstance()
         if (!settings.isLoggedIn()) {
             Messages.showWarningDialog(
                 project,
@@ -92,7 +92,7 @@ class RefreshSnippetsAction : AnAction() {
 
     override fun update(e: AnActionEvent) {
         val project = e.project
-        val settings = project?.let { SnipHiveSettings.getInstance(it) }
+        val settings = SnipHiveSettings.getInstance()
         val isLoggedIn = settings?.isLoggedIn() ?: false
         val lookupService = project?.let { SnippetLookupService.getInstance(it) }
         val isRefreshing = lookupService?.isRefreshing() ?: false

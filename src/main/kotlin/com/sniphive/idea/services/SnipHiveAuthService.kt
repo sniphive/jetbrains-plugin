@@ -59,12 +59,12 @@ class SnipHiveAuthService {
 
                 if (tokenStored) {
                     if (project != null) {
-                        val settings = SnipHiveSettings.getInstance(project)
+                        val settings = SnipHiveSettings.getInstance()
                         settings.setUserEmail(email)
                         loginData.user?.name?.let { settings.setUserName(it) }
                         // Set first workspace as default if available
                         loginData.workspaces.firstOrNull()?.let { ws ->
-                            settings.setWorkspaceId(ws.id.toString())
+                            settings.setWorkspaceId(ws.uuid ?: ws.id.toString())
                         }
                     }
 
@@ -108,14 +108,14 @@ class SnipHiveAuthService {
 
     fun getCurrentAuthToken(project: Project?): String? {
         return if (project != null) {
-            val settings = SnipHiveSettings.getInstance(project)
+            val settings = SnipHiveSettings.getInstance()
             val email = settings.getUserEmail()
             if (email.isNotEmpty()) getAuthToken(project, email) else null
         } else null
     }
 
     fun isCurrentAuthenticated(project: Project): Boolean {
-        val settings = SnipHiveSettings.getInstance(project)
+        val settings = SnipHiveSettings.getInstance()
         val email = settings.getUserEmail()
         return email.isNotEmpty() && isAuthenticated(project, email)
     }
@@ -131,7 +131,7 @@ class SnipHiveAuthService {
             val tokenRemoved = secureStorage.removeAuthToken(project, email)
 
             if (project != null) {
-                val settings = SnipHiveSettings.getInstance(project)
+                val settings = SnipHiveSettings.getInstance()
                 settings.setUserEmail("")
                 settings.setUserName("")
                 settings.setWorkspaceId("")

@@ -224,7 +224,7 @@ class LoginDialog(private val project: Project) : DialogWrapper(true) {
         // Perform login on background thread
         UIUtil.invokeLaterIfNeeded {
             try {
-                val settings = SnipHiveSettings.getInstance(project)
+                val settings = SnipHiveSettings.getInstance()
                 val apiUrl = settings.getApiUrl()
                 val authService = SnipHiveAuthService.getInstance()
 

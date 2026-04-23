@@ -54,12 +54,7 @@ class SnipHiveSettingsConfigurable : Configurable {
      * Get the active project settings.
      */
     private fun getActiveProjectSettings(): SnipHiveSettings? {
-        val project = ProjectManager.getInstance().openProjects.firstOrNull()
-        return if (project != null) {
-            SnipHiveSettings.getInstance(project)
-        } else {
-            null
-        }
+        return SnipHiveSettings.getInstance()
     }
 
     /**

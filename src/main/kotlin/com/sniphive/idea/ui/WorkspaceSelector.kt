@@ -128,7 +128,7 @@ class WorkspaceSelector(private val project: Project) : JPanel(BorderLayout()) {
 
         // Auto-select workspace - this will trigger ActionListener which calls onWorkspaceSelected
         if (workspaceComboBox.itemCount > 0) {
-            val settings = SnipHiveSettings.getInstance(project)
+            val settings = SnipHiveSettings.getInstance()
             val savedWorkspaceId = settings.getWorkspaceId()
 
             val workspaceToSelect = if (savedWorkspaceId.isNotEmpty()) {
@@ -149,7 +149,7 @@ class WorkspaceSelector(private val project: Project) : JPanel(BorderLayout()) {
         LOG.info("Workspace selected: ${workspace.name}")
 
         // Save to settings - use UUID for API calls
-        val settings = SnipHiveSettings.getInstance(project)
+        val settings = SnipHiveSettings.getInstance()
         settings.setWorkspaceId(workspace.uuid ?: workspace.id)
 
         // Refresh snippets and notes

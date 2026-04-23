@@ -140,7 +140,7 @@ class SnippetLookupService {
      */
     fun lookup(project: Project, options: FilterOptions = FilterOptions()): LookupResult {
         return try {
-            val settings = SnipHiveSettings.getInstance(project)
+            val settings = SnipHiveSettings.getInstance()
             val apiUrl = settings.getApiUrl()
 
             if (apiUrl.isEmpty()) {
@@ -254,7 +254,7 @@ class SnippetLookupService {
      */
     fun getById(project: Project, snippetSlug: String): Snippet? {
         return try {
-            val settings = SnipHiveSettings.getInstance(project)
+            val settings = SnipHiveSettings.getInstance()
             val apiUrl = settings.getApiUrl()
 
             if (apiUrl.isEmpty()) {
@@ -328,7 +328,7 @@ class SnippetLookupService {
      * @param project The project context
      */
     fun invalidateCache(project: Project) {
-        val settings = SnipHiveSettings.getInstance(project)
+        val settings = SnipHiveSettings.getInstance()
         val email = settings.getUserEmail()
 
         if (email.isNotEmpty()) {
@@ -365,7 +365,7 @@ class SnippetLookupService {
         options: FilterOptions
     ): List<Snippet> {
         val authService = SnipHiveAuthService.getInstance()
-        val settings = SnipHiveSettings.getInstance(project)
+        val settings = SnipHiveSettings.getInstance()
         val email = settings.getUserEmail()
         val token = authService.getAuthToken(project, email)
 

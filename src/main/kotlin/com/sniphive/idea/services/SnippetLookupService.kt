@@ -182,7 +182,7 @@ class SnippetLookupService(private val project: Project) {
      * @return true if refresh is needed
      */
     fun needsRefresh(): Boolean {
-        val settings = SnipHiveSettings.getInstance(project)
+        val settings = SnipHiveSettings.getInstance()
         val intervalMinutes = settings.getAutoRefreshIntervalMinutes()
 
         if (intervalMinutes <= 0) {

@@ -53,7 +53,7 @@ class SnipHiveApiService {
      */
     private fun getToken(project: Project?): String? {
         if (project == null) return null
-        val settings = SnipHiveSettings.getInstance(project)
+        val settings = SnipHiveSettings.getInstance()
         val email = settings.getUserEmail()
         if (email.isEmpty()) return null
         return SecureCredentialStorage.getInstance().getAuthToken(project, email)
@@ -64,7 +64,7 @@ class SnipHiveApiService {
      */
     private fun getWorkspaceId(project: Project?): String? {
         if (project == null) return null
-        val settings = SnipHiveSettings.getInstance(project)
+        val settings = SnipHiveSettings.getInstance()
         return settings.getWorkspaceId().ifEmpty { null }
     }
 

@@ -34,7 +34,7 @@ class OpenE2EESetupAction : AnAction() {
 
         LOG.info("Opening E2EE setup dialog for project: ${project.name}")
 
-        val settings = SnipHiveSettings.getInstance(project)
+        val settings = SnipHiveSettings.getInstance()
 
         // Check if user is authenticated
         val email = settings.getUserEmail()

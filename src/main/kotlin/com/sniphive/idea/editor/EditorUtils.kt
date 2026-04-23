@@ -21,7 +21,7 @@ object EditorUtils {
      * Automatically decrypts content if E2EE is enabled.
      */
     fun openSnippetInEditor(project: Project, snippet: Snippet) {
-        val settings = SnipHiveSettings.getInstance(project)
+        val settings = SnipHiveSettings.getInstance()
         val email = settings.getUserEmail()
 
         // Decrypt content if encrypted
@@ -45,7 +45,7 @@ object EditorUtils {
      * Automatically decrypts content if E2EE is enabled.
      */
     fun openNoteInEditor(project: Project, note: Note) {
-        val settings = SnipHiveSettings.getInstance(project)
+        val settings = SnipHiveSettings.getInstance()
         val email = settings.getUserEmail()
 
         // Decrypt content if encrypted

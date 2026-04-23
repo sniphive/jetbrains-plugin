@@ -236,7 +236,7 @@ class CreateNoteDialog(private val project: Project) : DialogWrapper(true) {
         ApplicationManager.getApplication().executeOnPooledThread {
             try {
                 val apiService = SnipHiveApiService.getInstance()
-                val settings = com.sniphive.idea.config.SnipHiveSettings.getInstance(project)
+                val settings = com.sniphive.idea.config.SnipHiveSettings.getInstance()
                 val email = settings.getUserEmail()
 
                 // Check if user has E2EE enabled

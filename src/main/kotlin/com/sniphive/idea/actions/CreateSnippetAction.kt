@@ -59,18 +59,27 @@ class CreateSnippetAction : AnAction() {
     override fun update(event: AnActionEvent) {
         val project = event.project
         val editor = event.getData(CommonDataKeys.EDITOR)
-        val settings = project?.let { SnipHiveSettings.getInstance(it) }
+        val settings = SnipHiveSettings.getInstance()
         val authService = SnipHiveAuthService.getInstance()
         val isAuthenticated = project?.let { authService.isCurrentAuthenticated(it) } ?: false
 
-        val isEnabled = project != null &&
+        // Debug: Log visibility conditions
+        LOG.debug("CreateSnippetAction update: project=${project?.name}, editor=${editor != null}, isAuthenticated=$isAuthenticated, apiUrl=${settings?.getApiUrl()?.takeIf { it.isNotEmpty() } ?: "empty"}")
+
+        // Show action when authenticated (even without selection)
+        val isVisible = project != null &&
                 editor != null &&
                 isAuthenticated &&
                 settings != null &&
-                settings.getApiUrl().isNotEmpty() &&
-                hasSelection(editor)
+                settings.getApiUrl().isNotEmpty()
 
-        event.presentation.isEnabledAndVisible = isEnabled
+        // Enable only when there's a selection
+        val isEnabled = isVisible && hasSelection(editor)
+
+        LOG.debug("CreateSnippetAction: isVisible=$isVisible, isEnabled=$isEnabled")
+
+        event.presentation.setVisible(isVisible)
+        event.presentation.setEnabled(isEnabled)
     }
 
     /**

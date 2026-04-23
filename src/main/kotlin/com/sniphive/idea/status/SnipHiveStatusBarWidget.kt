@@ -42,7 +42,7 @@ class SnipHiveStatusBarWidget(private val project: Project) : StatusBarWidget {
     override fun getPresentation(): StatusBarWidget.WidgetPresentation {
         return object : StatusBarWidget.TextPresentation {
             override fun getText(): String {
-                val settings = SnipHiveSettings.getInstance(project)
+                val settings = SnipHiveSettings.getInstance()
                 val snippetService = SnippetLookupService.getInstance(project)
                 val noteService = NoteLookupService.getInstance(project)
 
@@ -64,7 +64,7 @@ class SnipHiveStatusBarWidget(private val project: Project) : StatusBarWidget {
             }
 
             override fun getTooltipText(): String {
-                val settings = SnipHiveSettings.getInstance(project)
+                val settings = SnipHiveSettings.getInstance()
                 val snippetService = SnippetLookupService.getInstance(project)
                 val noteService = NoteLookupService.getInstance(project)
 

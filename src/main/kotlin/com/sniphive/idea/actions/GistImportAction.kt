@@ -31,7 +31,7 @@ class GistImportAction : AnAction() {
 
     override fun update(e: AnActionEvent) {
         val project = e.project
-        val settings = project?.let { SnipHiveSettings.getInstance(it) }
+        val settings = SnipHiveSettings.getInstance()
         val isAuthenticated = project?.let { SnipHiveAuthService.getInstance().isCurrentAuthenticated(it) } ?: false
 
         e.presentation.isEnabled = project != null && isAuthenticated
