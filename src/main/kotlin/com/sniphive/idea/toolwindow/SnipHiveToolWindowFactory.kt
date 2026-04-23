@@ -142,45 +142,37 @@ class SnipHiveToolWindowFactory : ToolWindowFactory {
             showCard(mainPanel, CARD_CONTENT)
 
             // Check E2EE state on background thread (PasswordSafe operations prohibited on EDT)
+            // Flattened threading: check both private key AND master password in single background call
             ApplicationManager.getApplication().executeOnPooledThread {
                 try {
                     val secureStorage = SecureCredentialStorage.getInstance()
                     val existingPrivateKey = secureStorage.getPrivateKey(project, userEmail)
+                    val storedMasterPassword = if (existingPrivateKey == null) {
+                        secureStorage.getMasterPassword(project, userEmail)
+                    } else null
 
                     ApplicationManager.getApplication().invokeLater {
-                        if (existingPrivateKey != null) {
-                            // E2EE already unlocked - show content
-                            settings.setE2eeUnlocked(true)
-                            showCard(mainPanel, CARD_CONTENT)
-                            workspaceSelector?.loadWorkspaces()
-                        } else {
-                            // Need to unlock E2EE - try auto-unlock with stored master password
-                            // Get master password on background thread
-                            ApplicationManager.getApplication().executeOnPooledThread {
-                                try {
-                                    val storedMasterPassword = secureStorage.getMasterPassword(project, userEmail)
-                                    ApplicationManager.getApplication().invokeLater {
-                                        if (storedMasterPassword != null) {
-                                            // Attempt auto-unlock
-                                            attemptAutoUnlock(project, userEmail, storedMasterPassword, mainPanel, settings) { success ->
-                                                if (success) {
-                                                    workspaceSelector?.loadWorkspaces()
-                                                } else {
-                                                    // Auto-unlock failed - show master password panel
-                                                    showCard(mainPanel, CARD_MASTER_PASSWORD)
-                                                }
-                                            }
-                                        } else {
-                                            // No stored master password - show master password panel
-                                            showCard(mainPanel, CARD_MASTER_PASSWORD)
-                                        }
-                                    }
-                                } catch (e: Exception) {
-                                    LOG.error("Failed to check master password", e)
-                                    ApplicationManager.getApplication().invokeLater {
+                        when {
+                            existingPrivateKey != null -> {
+                                // E2EE already unlocked - show content
+                                settings.setE2eeUnlocked(true)
+                                showCard(mainPanel, CARD_CONTENT)
+                                workspaceSelector?.loadWorkspaces()
+                            }
+                            storedMasterPassword != null -> {
+                                // Attempt auto-unlock with stored master password
+                                attemptAutoUnlock(project, userEmail, storedMasterPassword, mainPanel, settings) { success ->
+                                    if (success) {
+                                        workspaceSelector?.loadWorkspaces()
+                                    } else {
+                                        // Auto-unlock failed - show master password panel
                                         showCard(mainPanel, CARD_MASTER_PASSWORD)
                                     }
                                 }
+                            }
+                            else -> {
+                                // No stored master password - show master password panel
+                                showCard(mainPanel, CARD_MASTER_PASSWORD)
                             }
                         }
                     }
