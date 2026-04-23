@@ -85,7 +85,7 @@ class SnipHiveToolWindowFactory : ToolWindowFactory {
         LOG.debug("Creating SnipHive tool window content for project: ${project.name}")
 
         try {
-            val settings = SnipHiveSettings.getInstance(project)
+            val settings = SnipHiveSettings.getInstance()
             val contentPanel = createContentPanel(project, settings, toolWindow)
 
             val contentFactory = com.intellij.ui.content.ContentFactory.getInstance()
@@ -134,34 +134,61 @@ class SnipHiveToolWindowFactory : ToolWindowFactory {
         mainPanel.add(contentPanel, CARD_CONTENT)
 
         // Determine initial card based on auth and E2EE state
+        // IMPORTANT: PasswordSafe operations must be off EDT to avoid SEVERE errors
         val userEmail = settings.getUserEmail()
         if (userEmail.isNotEmpty()) {
-            // User is authenticated - check E2EE state
-            val secureStorage = SecureCredentialStorage.getInstance()
-            val existingPrivateKey = secureStorage.getPrivateKey(project, userEmail)
+            // User is authenticated - show loading state initially
+            // Show content card as loading placeholder while checking E2EE state
+            showCard(mainPanel, CARD_CONTENT)
 
-            if (existingPrivateKey != null) {
-                // E2EE already unlocked - show content
-                settings.setE2eeUnlocked(true)
-                showCard(mainPanel, CARD_CONTENT)
-                workspaceSelector?.loadWorkspaces()
-            } else {
-                // Need to unlock E2EE - try auto-unlock with stored master password
-                val storedMasterPassword = secureStorage.getMasterPassword(project, userEmail)
-                if (storedMasterPassword != null) {
-                    // Attempt auto-unlock
-                    showCard(mainPanel, CARD_CONTENT) // Show content immediately, unlock in background
-                    attemptAutoUnlock(project, userEmail, storedMasterPassword, mainPanel, settings) { success ->
-                        if (success) {
+            // Check E2EE state on background thread (PasswordSafe operations prohibited on EDT)
+            ApplicationManager.getApplication().executeOnPooledThread {
+                try {
+                    val secureStorage = SecureCredentialStorage.getInstance()
+                    val existingPrivateKey = secureStorage.getPrivateKey(project, userEmail)
+
+                    ApplicationManager.getApplication().invokeLater {
+                        if (existingPrivateKey != null) {
+                            // E2EE already unlocked - show content
+                            settings.setE2eeUnlocked(true)
+                            showCard(mainPanel, CARD_CONTENT)
                             workspaceSelector?.loadWorkspaces()
                         } else {
-                            // Auto-unlock failed - show master password panel
-                            showCard(mainPanel, CARD_MASTER_PASSWORD)
+                            // Need to unlock E2EE - try auto-unlock with stored master password
+                            // Get master password on background thread
+                            ApplicationManager.getApplication().executeOnPooledThread {
+                                try {
+                                    val storedMasterPassword = secureStorage.getMasterPassword(project, userEmail)
+                                    ApplicationManager.getApplication().invokeLater {
+                                        if (storedMasterPassword != null) {
+                                            // Attempt auto-unlock
+                                            attemptAutoUnlock(project, userEmail, storedMasterPassword, mainPanel, settings) { success ->
+                                                if (success) {
+                                                    workspaceSelector?.loadWorkspaces()
+                                                } else {
+                                                    // Auto-unlock failed - show master password panel
+                                                    showCard(mainPanel, CARD_MASTER_PASSWORD)
+                                                }
+                                            }
+                                        } else {
+                                            // No stored master password - show master password panel
+                                            showCard(mainPanel, CARD_MASTER_PASSWORD)
+                                        }
+                                    }
+                                } catch (e: Exception) {
+                                    LOG.error("Failed to check master password", e)
+                                    ApplicationManager.getApplication().invokeLater {
+                                        showCard(mainPanel, CARD_MASTER_PASSWORD)
+                                    }
+                                }
+                            }
                         }
                     }
-                } else {
-                    // No stored master password - show master password panel
-                    showCard(mainPanel, CARD_MASTER_PASSWORD)
+                } catch (e: Exception) {
+                    LOG.error("Failed to check E2EE state", e)
+                    ApplicationManager.getApplication().invokeLater {
+                        showCard(mainPanel, CARD_LOGIN)
+                    }
                 }
             }
         } else {
@@ -1165,44 +1192,48 @@ class SnipHiveToolWindowFactory : ToolWindowFactory {
             loginButton.text = "Logging in..."
             errorLabel.isVisible = false
 
-            // Perform login
-            UIUtil.invokeLaterIfNeeded {
+            // Perform login on background thread (PasswordSafe operations prohibited on EDT)
+            ApplicationManager.getApplication().executeOnPooledThread {
                 try {
                     val authService = SnipHiveAuthService.getInstance()
                     val result = authService.login(project, API_URL, email, password)
 
-                    if (result.success) {
-                        LOG.info("Login successful for user: $email")
+                    ApplicationManager.getApplication().invokeLater {
+                        if (result.success) {
+                            LOG.info("Login successful for user: $email")
 
-                        // Check E2EE status and redirect to appropriate card
-                        checkE2EEAndRedirect(project, email, mainPanel, settings) { unlocked ->
-                            if (unlocked) {
-                                // E2EE unlocked - load workspaces
-                                val contentPanel = mainPanel.getComponent(2) as? JPanel
-                                if (contentPanel != null) {
-                                    val workspaceSelector = findWorkspaceSelector(contentPanel)
-                                    if (workspaceSelector != null) {
-                                        onLoginSuccess(workspaceSelector)
+                            // Check E2EE status and redirect to appropriate card
+                            checkE2EEAndRedirect(project, email, mainPanel, settings) { unlocked ->
+                                if (unlocked) {
+                                    // E2EE unlocked - load workspaces
+                                    val contentPanel = mainPanel.getComponent(2) as? JPanel
+                                    if (contentPanel != null) {
+                                        val workspaceSelector = findWorkspaceSelector(contentPanel)
+                                        if (workspaceSelector != null) {
+                                            onLoginSuccess(workspaceSelector)
+                                        }
                                     }
                                 }
+                                // If not unlocked, user is on master password card
                             }
-                            // If not unlocked, user is on master password card
+                        } else {
+                            LOG.warn("Login failed: ${result.message}")
+                            errorLabel.text = result.message
+                            errorLabel.isVisible = true
+                            loginButton.isEnabled = true
+                            loginButton.text = "Login"
+                            passwordField.text = ""
+                            passwordField.requestFocusInWindow()
                         }
-                    } else {
-                        LOG.warn("Login failed: ${result.message}")
-                        errorLabel.text = result.message
-                        errorLabel.isVisible = true
-                        loginButton.isEnabled = true
-                        loginButton.text = "Login"
-                        passwordField.text = ""
-                        passwordField.requestFocusInWindow()
                     }
                 } catch (e: Exception) {
                     LOG.error("Login error", e)
-                    errorLabel.text = "An error occurred. Please try again."
-                    errorLabel.isVisible = true
-                    loginButton.isEnabled = true
-                    loginButton.text = "Login"
+                    ApplicationManager.getApplication().invokeLater {
+                        errorLabel.text = "An error occurred. Please try again."
+                        errorLabel.isVisible = true
+                        loginButton.isEnabled = true
+                        loginButton.text = "Login"
+                    }
                 }
             }
         }
@@ -1243,26 +1274,43 @@ class SnipHiveToolWindowFactory : ToolWindowFactory {
         // Clear E2EE session state
         settings.clearE2eeSession()
 
-        // Clear stored master password
-        SecureCredentialStorage.getInstance().removeMasterPassword(project, email)
+        // Perform logout on background thread (PasswordSafe operations prohibited on EDT)
+        ApplicationManager.getApplication().executeOnPooledThread {
+            try {
+                // Clear stored master password
+                SecureCredentialStorage.getInstance().removeMasterPassword(project, email)
 
-        val authService = SnipHiveAuthService.getInstance()
-        val success = authService.logout(project, API_URL, email, notifyApi = true)
+                val authService = SnipHiveAuthService.getInstance()
+                val success = authService.logout(project, API_URL, email, notifyApi = true)
 
-        if (success) {
-            LOG.info("Logout successful for user: $email")
-            // Clear caches
-            SnippetLookupService.getInstance(project).clearCache()
-            NoteLookupService.getInstance(project).clearCache()
-            showCard(mainPanel, CARD_LOGIN)
-        } else {
-            LOG.warn("Logout failed for user: $email")
-            JOptionPane.showMessageDialog(
-                mainPanel,
-                "Failed to logout. Please try again.",
-                "Logout Failed",
-                JOptionPane.ERROR_MESSAGE
-            )
+                ApplicationManager.getApplication().invokeLater {
+                    if (success) {
+                        LOG.info("Logout successful for user: $email")
+                        // Clear caches
+                        SnippetLookupService.getInstance(project).clearCache()
+                        NoteLookupService.getInstance(project).clearCache()
+                        showCard(mainPanel, CARD_LOGIN)
+                    } else {
+                        LOG.warn("Logout failed for user: $email")
+                        JOptionPane.showMessageDialog(
+                            mainPanel,
+                            "Failed to logout. Please try again.",
+                            "Logout Failed",
+                            JOptionPane.ERROR_MESSAGE
+                        )
+                    }
+                }
+            } catch (e: Exception) {
+                LOG.error("Logout error", e)
+                ApplicationManager.getApplication().invokeLater {
+                    JOptionPane.showMessageDialog(
+                        mainPanel,
+                        "Failed to logout. Please try again.",
+                        "Logout Failed",
+                        JOptionPane.ERROR_MESSAGE
+                    )
+                }
+            }
         }
     }
 
