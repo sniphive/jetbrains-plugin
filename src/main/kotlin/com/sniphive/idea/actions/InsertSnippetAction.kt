@@ -64,7 +64,7 @@ class InsertSnippetAction : AnAction() {
     override fun update(event: AnActionEvent) {
         val project = event.project
         val editor = event.getData(CommonDataKeys.EDITOR)
-        val settings = project?.let { SnipHiveSettings.getInstance(it) }
+        val settings = SnipHiveSettings.getInstance()
         val authService = SnipHiveAuthService.getInstance()
         val isAuthenticated = project?.let { authService.isCurrentAuthenticated(it) } ?: false
 
@@ -207,7 +207,7 @@ class InsertSnippetAction : AnAction() {
      */
     private fun decryptSnippetContent(project: Project, snippet: Snippet): String? {
         return try {
-            val settings = SnipHiveSettings.getInstance(project)
+            val settings = SnipHiveSettings.getInstance()
             val secureStorage = SecureCredentialStorage.getInstance()
             val email = settings.getUserEmail()
 

@@ -19,6 +19,7 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.ComboBox
 import com.intellij.openapi.util.UserDataHolderBase
 import com.intellij.ui.JBColor
+import com.intellij.ui.DocumentAdapter
 import com.intellij.util.ui.JBUI
 import com.sniphive.idea.models.Tag
 import com.sniphive.idea.services.SnipHiveApiService
@@ -166,10 +167,10 @@ class SnippetEditor(
 
     private fun setupListeners() {
         // Title changes
-        titleField.document.addDocumentListener(object : javax.swing.event.DocumentListener {
-            override fun insertUpdate(e: javax.swing.event.DocumentEvent?) = onTitleChanged()
-            override fun removeUpdate(e: javax.swing.event.DocumentEvent?) = onTitleChanged()
-            override fun changedUpdate(e: javax.swing.event.DocumentEvent?) = onTitleChanged()
+        titleField.document.addDocumentListener(object : DocumentAdapter() {
+            override fun textChanged(e: javax.swing.event.DocumentEvent) {
+                onTitleChanged()
+            }
         })
 
         // Language changes
@@ -223,7 +224,7 @@ class SnippetEditor(
         ApplicationManager.getApplication().executeOnPooledThread {
             try {
                 val apiService = SnipHiveApiService.getInstance()
-                val settings = com.sniphive.idea.config.SnipHiveSettings.getInstance(project)
+                val settings = com.sniphive.idea.config.SnipHiveSettings.getInstance()
                 val email = settings.getUserEmail()
 
                 val title = virtualFile.title

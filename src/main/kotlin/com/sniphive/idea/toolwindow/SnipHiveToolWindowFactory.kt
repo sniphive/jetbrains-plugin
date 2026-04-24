@@ -8,10 +8,12 @@ import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.wm.ToolWindow
 import com.intellij.openapi.wm.ToolWindowFactory
+import com.intellij.ide.BrowserUtil
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBPasswordField
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.components.JBTextField
+import com.intellij.ui.DocumentAdapter
 import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.UIUtil
 import com.sniphive.idea.config.SnipHiveSettings
@@ -80,10 +82,8 @@ class SnipHiveToolWindowFactory : ToolWindowFactory {
     }
 
     override fun createToolWindowContent(project: Project, toolWindow: ToolWindow) {
-        LOG.debug("Creating SnipHive tool window content for project: ${project.name}")
-
         try {
-            val settings = SnipHiveSettings.getInstance(project)
+            val settings = SnipHiveSettings.getInstance()
             val contentPanel = createContentPanel(project, settings, toolWindow)
 
             val contentFactory = com.intellij.ui.content.ContentFactory.getInstance()
@@ -92,7 +92,6 @@ class SnipHiveToolWindowFactory : ToolWindowFactory {
 
             toolWindow.contentManager.addContent(content)
 
-            LOG.info("SnipHive tool window created successfully for project: ${project.name}")
         } catch (e: Exception) {
             LOG.error("Failed to create SnipHive tool window content", e)
 
@@ -132,34 +131,55 @@ class SnipHiveToolWindowFactory : ToolWindowFactory {
         mainPanel.add(contentPanel, CARD_CONTENT)
 
         // Determine initial card based on auth and E2EE state
+        // IMPORTANT: PasswordSafe operations must be off EDT to avoid SEVERE errors
         val userEmail = settings.getUserEmail()
-        if (userEmail.isNotEmpty()) {
-            // User is authenticated - check E2EE state
-            val secureStorage = SecureCredentialStorage.getInstance()
-            val existingPrivateKey = secureStorage.getPrivateKey(project, userEmail)
 
-            if (existingPrivateKey != null) {
-                // E2EE already unlocked - show content
-                settings.setE2eeUnlocked(true)
-                showCard(mainPanel, CARD_CONTENT)
-                workspaceSelector?.loadWorkspaces()
-            } else {
-                // Need to unlock E2EE - try auto-unlock with stored master password
-                val storedMasterPassword = secureStorage.getMasterPassword(project, userEmail)
-                if (storedMasterPassword != null) {
-                    // Attempt auto-unlock
-                    showCard(mainPanel, CARD_CONTENT) // Show content immediately, unlock in background
-                    attemptAutoUnlock(project, userEmail, storedMasterPassword, mainPanel, settings) { success ->
-                        if (success) {
-                            workspaceSelector?.loadWorkspaces()
-                        } else {
-                            // Auto-unlock failed - show master password panel
-                            showCard(mainPanel, CARD_MASTER_PASSWORD)
+        if (userEmail.isNotEmpty()) {
+            // User is authenticated - show loading state initially
+            // Show content card as loading placeholder while checking E2EE state
+            showCard(mainPanel, CARD_CONTENT)
+
+            // Check E2EE state on background thread (PasswordSafe operations prohibited on EDT)
+            // Flattened threading: check both private key AND master password in single background call
+            ApplicationManager.getApplication().executeOnPooledThread {
+                try {
+                    val secureStorage = SecureCredentialStorage.getInstance()
+                    val existingPrivateKey = secureStorage.getPrivateKey(project, userEmail)
+
+                    val storedMasterPassword = if (existingPrivateKey == null) {
+                        secureStorage.getMasterPassword(project, userEmail)
+                    } else null
+
+                    ApplicationManager.getApplication().invokeLater {
+                        when {
+                            existingPrivateKey != null -> {
+                                // E2EE already unlocked - show content
+                                settings.setE2eeUnlocked(true)
+                                showCard(mainPanel, CARD_CONTENT)
+                                workspaceSelector?.loadWorkspaces()
+                            }
+                            storedMasterPassword != null -> {
+                                // Attempt auto-unlock with stored master password
+                                attemptAutoUnlock(project, userEmail, storedMasterPassword, mainPanel, settings) { success ->
+                                    if (success) {
+                                        workspaceSelector?.loadWorkspaces()
+                                    } else {
+                                        // Auto-unlock failed - show master password panel
+                                        showCard(mainPanel, CARD_MASTER_PASSWORD)
+                                    }
+                                }
+                            }
+                            else -> {
+                                // No stored master password - show master password panel
+                                showCard(mainPanel, CARD_MASTER_PASSWORD)
+                            }
                         }
                     }
-                } else {
-                    // No stored master password - show master password panel
-                    showCard(mainPanel, CARD_MASTER_PASSWORD)
+                } catch (e: Exception) {
+                    LOG.error("Failed to check E2EE state", e)
+                    ApplicationManager.getApplication().invokeLater {
+                        showCard(mainPanel, CARD_LOGIN)
+                    }
                 }
             }
         } else {
@@ -600,12 +620,8 @@ class SnipHiveToolWindowFactory : ToolWindowFactory {
     ) {
         // Search listener with debounce
         var searchTimer: Timer? = null
-        searchField.document.addDocumentListener(object : javax.swing.event.DocumentListener {
-            override fun insertUpdate(e: javax.swing.event.DocumentEvent) = scheduleSearch()
-            override fun removeUpdate(e: javax.swing.event.DocumentEvent) = scheduleSearch()
-            override fun changedUpdate(e: javax.swing.event.DocumentEvent) = scheduleSearch()
-
-            private fun scheduleSearch() {
+        searchField.document.addDocumentListener(object : DocumentAdapter() {
+            override fun textChanged(e: javax.swing.event.DocumentEvent) {
                 searchTimer?.stop()
                 searchTimer = Timer(300) {
                     filterNotes(project, searchField.text, listPanel)
@@ -943,8 +959,6 @@ class SnipHiveToolWindowFactory : ToolWindowFactory {
                         // Update E2EE state
                         settings.setE2eeUnlocked(true)
 
-                        LOG.info("E2EE unlocked successfully for user: ${settings.getUserEmail()}")
-
                         ApplicationManager.getApplication().invokeLater {
                             showCard(mainPanel, CARD_CONTENT)
                             onUnlockSuccess()
@@ -1007,7 +1021,6 @@ class SnipHiveToolWindowFactory : ToolWindowFactory {
         mainUnlockPanel.add(headerPanel, BorderLayout.NORTH)
         mainUnlockPanel.add(centerPanel, BorderLayout.CENTER)
 
-        LOG.debug("Master password panel created for SnipHive tool window")
         return mainUnlockPanel
     }
 
@@ -1022,10 +1035,12 @@ class SnipHiveToolWindowFactory : ToolWindowFactory {
         settings: SnipHiveSettings,
         callback: (Boolean) -> Unit
     ) {
+
         ApplicationManager.getApplication().executeOnPooledThread {
             try {
                 val apiService = SnipHiveApiService.getInstance()
                 val securityStatus = apiService.getSecurityStatus(project)
+
 
                 if (securityStatus != null && securityStatus.setupComplete && securityStatus.e2eeProfile != null) {
                     val privateKey = E2EECryptoService.unlockWithMasterPassword(masterPassword, securityStatus.e2eeProfile)
@@ -1038,8 +1053,10 @@ class SnipHiveToolWindowFactory : ToolWindowFactory {
                     // Update E2EE state
                     settings.setE2eeUnlocked(true)
 
-                    LOG.info("Auto-unlock successful for user: $email")
-                    ApplicationManager.getApplication().invokeLater { callback(true) }
+                    ApplicationManager.getApplication().invokeLater {
+                        showCard(mainPanel, CARD_CONTENT)
+                        callback(true)
+                    }
                 } else {
                     LOG.warn("E2EE not set up for user: $email")
                     ApplicationManager.getApplication().invokeLater { callback(false) }
@@ -1123,8 +1140,19 @@ class SnipHiveToolWindowFactory : ToolWindowFactory {
         val loginButton = JButton("Login")
         loginButton.toolTipText = "Login to SnipHive"
 
+        // Register button
+        val registerButton = JButton("Register")
+        registerButton.toolTipText = "Create a new SnipHive account"
+
         val buttonPanel = JPanel(FlowLayout(FlowLayout.CENTER))
         buttonPanel.add(loginButton)
+        buttonPanel.add(Box.createHorizontalStrut(10))
+        buttonPanel.add(registerButton)
+
+        // Register action - opens registration page in browser
+        registerButton.addActionListener {
+            BrowserUtil.browse("https://sniphive.net/register")
+        }
 
         gbc.gridx = 0
         gbc.gridy = 3
@@ -1135,6 +1163,7 @@ class SnipHiveToolWindowFactory : ToolWindowFactory {
         loginButton.addActionListener {
             val email = emailField.text.trim()
             val password = String(passwordField.password)
+            
 
             if (email.isEmpty()) {
                 errorLabel.text = "Email is required"
@@ -1150,49 +1179,53 @@ class SnipHiveToolWindowFactory : ToolWindowFactory {
                 return@addActionListener
             }
 
+
             // Disable button and show loading
             loginButton.isEnabled = false
             loginButton.text = "Logging in..."
             errorLabel.isVisible = false
 
-            // Perform login
-            UIUtil.invokeLaterIfNeeded {
+
+            // Perform login on background thread (PasswordSafe operations prohibited on EDT)
+            ApplicationManager.getApplication().executeOnPooledThread {
                 try {
                     val authService = SnipHiveAuthService.getInstance()
                     val result = authService.login(project, API_URL, email, password)
 
-                    if (result.success) {
-                        LOG.info("Login successful for user: $email")
+                    ApplicationManager.getApplication().invokeLater {
+                        if (result.success) {
 
-                        // Check E2EE status and redirect to appropriate card
-                        checkE2EEAndRedirect(project, email, mainPanel, settings) { unlocked ->
-                            if (unlocked) {
-                                // E2EE unlocked - load workspaces
-                                val contentPanel = mainPanel.getComponent(2) as? JPanel
-                                if (contentPanel != null) {
-                                    val workspaceSelector = findWorkspaceSelector(contentPanel)
-                                    if (workspaceSelector != null) {
-                                        onLoginSuccess(workspaceSelector)
+                            // Check E2EE status and redirect to appropriate card
+                            checkE2EEAndRedirect(project, email, mainPanel, settings) { unlocked ->
+                                if (unlocked) {
+                                    // E2EE unlocked - load workspaces
+                                    val contentPanel = mainPanel.getComponent(2) as? JPanel
+                                    if (contentPanel != null) {
+                                        val workspaceSelector = findWorkspaceSelector(contentPanel)
+                                        if (workspaceSelector != null) {
+                                            onLoginSuccess(workspaceSelector)
+                                        }
                                     }
                                 }
+                                // If not unlocked, user is on master password card
                             }
-                            // If not unlocked, user is on master password card
+                        } else {
+                            LOG.warn("Login failed: ${result.message}")
+                            errorLabel.text = result.message
+                            errorLabel.isVisible = true
+                            loginButton.isEnabled = true
+                            loginButton.text = "Login"
+                            passwordField.text = ""
+                            passwordField.requestFocusInWindow()
                         }
-                    } else {
-                        LOG.warn("Login failed: ${result.message}")
-                        errorLabel.text = result.message
+                    }
+                } catch (e: Exception) {
+                    ApplicationManager.getApplication().invokeLater {
+                        errorLabel.text = "An error occurred. Please try again."
                         errorLabel.isVisible = true
                         loginButton.isEnabled = true
                         loginButton.text = "Login"
-                        passwordField.text = ""
-                        passwordField.requestFocusInWindow()
                     }
-                } catch (e: Exception) {
-                    LOG.error("Login error", e)
-                    errorLabel.text = "An error occurred. Please try again."
-                    errorLabel.isVisible = true
-                    loginButton.isEnabled = true
-                    loginButton.text = "Login"
                 }
             }
         }
@@ -1208,7 +1241,6 @@ class SnipHiveToolWindowFactory : ToolWindowFactory {
         mainLoginPanel.add(headerPanel, BorderLayout.NORTH)
         mainLoginPanel.add(centerPanel, BorderLayout.CENTER)
 
-        LOG.debug("Login panel created for SnipHive tool window")
         return mainLoginPanel
     }
 
@@ -1226,33 +1258,47 @@ class SnipHiveToolWindowFactory : ToolWindowFactory {
         toolWindow: ToolWindow,
         mainPanel: JPanel
     ) {
-        LOG.debug("Performing logout")
-
         val email = settings.getUserEmail()
 
         // Clear E2EE session state
         settings.clearE2eeSession()
 
-        // Clear stored master password
-        SecureCredentialStorage.getInstance().removeMasterPassword(project, email)
+        // Perform logout on background thread (PasswordSafe operations prohibited on EDT)
+        ApplicationManager.getApplication().executeOnPooledThread {
+            try {
+                // Clear stored master password
+                SecureCredentialStorage.getInstance().removeMasterPassword(project, email)
 
-        val authService = SnipHiveAuthService.getInstance()
-        val success = authService.logout(project, API_URL, email, notifyApi = true)
+                val authService = SnipHiveAuthService.getInstance()
+                val success = authService.logout(project, API_URL, email, notifyApi = true)
 
-        if (success) {
-            LOG.info("Logout successful for user: $email")
-            // Clear caches
-            SnippetLookupService.getInstance(project).clearCache()
-            NoteLookupService.getInstance(project).clearCache()
-            showCard(mainPanel, CARD_LOGIN)
-        } else {
-            LOG.warn("Logout failed for user: $email")
-            JOptionPane.showMessageDialog(
-                mainPanel,
-                "Failed to logout. Please try again.",
-                "Logout Failed",
-                JOptionPane.ERROR_MESSAGE
-            )
+                ApplicationManager.getApplication().invokeLater {
+                    if (success) {
+                        // Clear caches
+                        SnippetLookupService.getInstance(project).clearCache()
+                        NoteLookupService.getInstance(project).clearCache()
+                        showCard(mainPanel, CARD_LOGIN)
+                    } else {
+                        LOG.warn("Logout failed for user: $email")
+                        JOptionPane.showMessageDialog(
+                            mainPanel,
+                            "Failed to logout. Please try again.",
+                            "Logout Failed",
+                            JOptionPane.ERROR_MESSAGE
+                        )
+                    }
+                }
+            } catch (e: Exception) {
+                LOG.error("Logout error", e)
+                ApplicationManager.getApplication().invokeLater {
+                    JOptionPane.showMessageDialog(
+                        mainPanel,
+                        "Failed to logout. Please try again.",
+                        "Logout Failed",
+                        JOptionPane.ERROR_MESSAGE
+                    )
+                }
+            }
         }
     }
 
@@ -1273,20 +1319,24 @@ class SnipHiveToolWindowFactory : ToolWindowFactory {
         settings: SnipHiveSettings,
         onComplete: (Boolean) -> Unit
     ) {
+
         ApplicationManager.getApplication().executeOnPooledThread {
             try {
                 val apiService = SnipHiveApiService.getInstance()
                 val securityStatus = apiService.getSecurityStatus(project)
+
 
                 if (securityStatus != null && securityStatus.setupComplete) {
                     // Check if we already have the private key
                     val secureStorage = SecureCredentialStorage.getInstance()
                     val existingPrivateKey = secureStorage.getPrivateKey(project, email)
 
+
                     if (existingPrivateKey == null) {
                         // Need to unlock E2EE - show master password card
                         // Try auto-unlock with stored master password
                         val storedMasterPassword = secureStorage.getMasterPassword(project, email)
+
                         if (storedMasterPassword != null && securityStatus.e2eeProfile != null) {
                             try {
                                 val privateKey = E2EECryptoService.unlockWithMasterPassword(storedMasterPassword, securityStatus.e2eeProfile)
@@ -1294,13 +1344,11 @@ class SnipHiveToolWindowFactory : ToolWindowFactory {
                                 secureStorage.storePrivateKey(project, email, privateKeyJwk)
                                 settings.setE2eeUnlocked(true)
 
-                                LOG.info("Auto-unlock successful for user: $email")
                                 ApplicationManager.getApplication().invokeLater {
                                     showCard(mainPanel, CARD_CONTENT)
                                     onComplete(true)
                                 }
                             } catch (e: Exception) {
-                                LOG.warn("Auto-unlock failed, showing master password card")
                                 secureStorage.removeMasterPassword(project, email)
                                 ApplicationManager.getApplication().invokeLater {
                                     showCard(mainPanel, CARD_MASTER_PASSWORD)
@@ -1329,9 +1377,9 @@ class SnipHiveToolWindowFactory : ToolWindowFactory {
                         onComplete(true)
                     }
                 }
-            } catch (e: Exception) {
-                LOG.error("Failed to check E2EE status", e)
-                ApplicationManager.getApplication().invokeLater {
+} catch (e: Exception) {
+                    LOG.error("Login error", e)
+                    ApplicationManager.getApplication().invokeLater {
                     showCard(mainPanel, CARD_MASTER_PASSWORD)
                     onComplete(false)
                 }

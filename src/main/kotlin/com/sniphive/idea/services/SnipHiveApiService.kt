@@ -52,11 +52,21 @@ class SnipHiveApiService {
      * Get the auth token for the current user.
      */
     private fun getToken(project: Project?): String? {
-        if (project == null) return null
-        val settings = SnipHiveSettings.getInstance(project)
+
+        if (project == null) {
+            return null
+        }
+
+        val settings = SnipHiveSettings.getInstance()
         val email = settings.getUserEmail()
-        if (email.isEmpty()) return null
-        return SecureCredentialStorage.getInstance().getAuthToken(project, email)
+
+        if (email.isEmpty()) {
+            return null
+        }
+
+        val token = SecureCredentialStorage.getInstance().getAuthToken(project, email)
+
+        return token
     }
 
     /**
@@ -64,7 +74,7 @@ class SnipHiveApiService {
      */
     private fun getWorkspaceId(project: Project?): String? {
         if (project == null) return null
-        val settings = SnipHiveSettings.getInstance(project)
+        val settings = SnipHiveSettings.getInstance()
         return settings.getWorkspaceId().ifEmpty { null }
     }
 
@@ -72,17 +82,26 @@ class SnipHiveApiService {
      * Get all snippets for the user's workspace.
      */
     fun getSnippets(project: Project): List<Snippet> {
-        val token = getToken(project) ?: return emptyList()
+
+        val token = getToken(project)
+
+        if (token == null) {
+            return emptyList()
+        }
+
         val workspaceId = getWorkspaceId(project)
 
         val apiClient = SnipHiveApiClient.getInstance()
-        return apiClient.getPaginated(
+
+        val snippets = apiClient.getPaginated(
             apiUrl = API_URL,
             endpoint = SNIPPETS_ENDPOINT,
             token = token,
             itemClass = Snippet::class.java,
             workspaceId = workspaceId
         )
+
+        return snippets
     }
 
     /**
@@ -660,16 +679,27 @@ class SnipHiveApiService {
      * Note: Workspaces endpoint doesn't require workspaceId header.
      */
     fun getWorkspaces(project: Project): List<Workspace> {
-        val token = getToken(project) ?: return emptyList()
+
+        val token = getToken(project)
+
+        if (token == null) {
+            return emptyList()
+        }
 
         val apiClient = SnipHiveApiClient.getInstance()
-        return apiClient.getPaginated(
+
+        val workspaces = apiClient.getPaginated(
             apiUrl = API_URL,
             endpoint = WORKSPACES_ENDPOINT,
             token = token,
             itemClass = Workspace::class.java,
             workspaceId = null
         )
+
+        workspaces.forEach { ws ->
+        }
+
+        return workspaces
     }
 
     /**

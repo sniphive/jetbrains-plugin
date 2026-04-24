@@ -6,6 +6,7 @@ import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.components.JBTextField
 import com.intellij.ui.components.panels.VerticalLayout
+import com.intellij.ui.DocumentAdapter
 import com.intellij.util.ui.JBUI
 import com.sniphive.idea.models.Tag
 import java.awt.BorderLayout
@@ -14,7 +15,6 @@ import java.awt.Component
 import javax.swing.*
 import javax.swing.border.EmptyBorder
 import javax.swing.event.DocumentEvent
-import javax.swing.event.DocumentListener
 
 /**
  * Panel for searching and filtering snippets in the SnipHive tool window.
@@ -212,18 +212,10 @@ class SearchPanel(project: com.intellij.openapi.project.Project) : JPanel() {
         }
 
         // Search field - also trigger on document changes with debounce
-        searchField.document.addDocumentListener(object : DocumentListener {
+        searchField.document.addDocumentListener(object : DocumentAdapter() {
             private var timer: Timer? = null
 
-            override fun insertUpdate(e: DocumentEvent) {
-                scheduleSearch()
-            }
-
-            override fun removeUpdate(e: DocumentEvent) {
-                scheduleSearch()
-            }
-
-            override fun changedUpdate(e: DocumentEvent) {
+            override fun textChanged(e: DocumentEvent) {
                 scheduleSearch()
             }
 

@@ -93,7 +93,9 @@ class WorkspaceSelector(private val project: Project) : JPanel(BorderLayout()) {
      * Load workspaces from API.
      */
     fun loadWorkspaces() {
-        if (isLoading) return
+        if (isLoading) {
+            return
+        }
 
         isLoading = true
         refreshButton.isEnabled = false
@@ -126,14 +128,16 @@ class WorkspaceSelector(private val project: Project) : JPanel(BorderLayout()) {
             workspaceComboBox.addItem(workspace)
         }
 
+
         // Auto-select workspace - this will trigger ActionListener which calls onWorkspaceSelected
         if (workspaceComboBox.itemCount > 0) {
-            val settings = SnipHiveSettings.getInstance(project)
+            val settings = SnipHiveSettings.getInstance()
             val savedWorkspaceId = settings.getWorkspaceId()
 
             val workspaceToSelect = if (savedWorkspaceId.isNotEmpty()) {
                 // Match by UUID first, then by ID for backward compatibility
-                workspaces.find { it.uuid == savedWorkspaceId || it.id == savedWorkspaceId } ?: workspaces.firstOrNull()
+                val found = workspaces.find { it.uuid == savedWorkspaceId || it.id == savedWorkspaceId }
+                found ?: workspaces.firstOrNull()
             } else {
                 workspaces.firstOrNull()
             }
@@ -146,11 +150,11 @@ class WorkspaceSelector(private val project: Project) : JPanel(BorderLayout()) {
     }
 
     private fun onWorkspaceSelected(workspace: Workspace) {
-        LOG.info("Workspace selected: ${workspace.name}")
 
         // Save to settings - use UUID for API calls
-        val settings = SnipHiveSettings.getInstance(project)
-        settings.setWorkspaceId(workspace.uuid ?: workspace.id)
+        val settings = SnipHiveSettings.getInstance()
+        val workspaceIdToSave = workspace.uuid ?: workspace.id
+        settings.setWorkspaceId(workspaceIdToSave)
 
         // Refresh snippets and notes
         SnippetLookupService.getInstance(project).refreshSnippets()

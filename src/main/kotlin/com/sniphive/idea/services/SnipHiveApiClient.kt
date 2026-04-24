@@ -182,6 +182,7 @@ class SnipHiveApiClient {
     ): List<T> {
         var response: Response? = null
         return try {
+
             // Add workspace_id to query params if provided
             val finalQueryParams = if (!workspaceId.isNullOrEmpty()) {
                 (queryParams ?: emptyMap()) + ("workspace_id" to workspaceId)
@@ -189,9 +190,8 @@ class SnipHiveApiClient {
                 queryParams
             }
 
-            LOG.debug("getPaginated: endpoint=$endpoint")
-
             val url = buildUrl(apiUrl, endpoint, finalQueryParams)
+
             val requestBuilder = Request.Builder().url(url).get()
 
             if (!token.isNullOrEmpty()) {
@@ -204,23 +204,27 @@ class SnipHiveApiClient {
             val request = requestBuilder.build()
             response = client.newCall(request).execute()
 
+
             if (response.isSuccessful) {
                 val responseBody = response.body?.string() ?: ""
+
                 // Parse as PaginatedResponse
                 val paginatedType = com.google.gson.reflect.TypeToken.getParameterized(
                     PaginatedResponse::class.java, itemClass
                 ).type
                 val paginatedResponse = gson.fromJson<PaginatedResponse<T>>(responseBody, paginatedType)
+
+                val itemCount = paginatedResponse?.data?.size ?: 0
+
                 paginatedResponse?.data ?: emptyList()
             } else {
                 val errorBody = response.body?.string() ?: ""
-                LOG.warn("Paginated request failed: ${response.code} for $endpoint")
                 emptyList()
             }
-        } catch (e: Exception) {
-            LOG.error("Error fetching paginated data from $endpoint", e)
-            emptyList()
-        } finally {
+} catch (e: Exception) {
+                LOG.error("Error fetching paginated data from $endpoint", e)
+                emptyList()
+            } finally {
             response?.body?.close()
         }
     }
@@ -234,8 +238,11 @@ class SnipHiveApiClient {
         workspaceId: String? = null
     ): ApiResponse<T> {
         return try {
+            
             val url = buildUrl(apiUrl, endpoint, null)
+            
             val requestBody = createRequestBody(body) ?: "{}".toRequestBody(JSON_MEDIA_TYPE)
+
             val requestBuilder = Request.Builder().url(url).post(requestBody)
 
             if (!token.isNullOrEmpty()) {
@@ -250,12 +257,13 @@ class SnipHiveApiClient {
             requestBuilder.addHeader("Content-Type", "application/json")
 
             val request = requestBuilder.build()
-            executeRequest(request, responseType)
+            
+            val response = executeRequest(request, responseType)
+            
+            response
         } catch (e: IllegalArgumentException) {
-            LOG.error("Invalid URL parameters for POST $endpoint", e)
             ApiResponse(success = false, error = "Invalid request parameters: ${e.message}", statusCode = HTTP_BAD_REQUEST)
         } catch (e: Exception) {
-            LOG.error("Unexpected error during POST $endpoint", e)
             ApiResponse(success = false, error = "Request failed: ${e.message}", statusCode = HTTP_SERVER_ERROR)
         }
     }
@@ -351,18 +359,22 @@ class SnipHiveApiClient {
     }
 
     private fun buildUrl(apiUrl: String, endpoint: String, queryParams: Map<String, String>?): String {
+        
         val baseUrl = apiUrl.trimEnd('/')
         val path = endpoint.trimStart('/')
+        
+        
         val urlBuilder = HttpUrl.Builder()
             .scheme("https")
-            .host(apiUrl.removePrefix("https://").removePrefix("http://"))
+            .host(apiUrl.removePrefix("https://").removePrefix("http://").removeSuffix("/"))
             .addPathSegments(path)
 
         queryParams?.forEach { (key, value) ->
             urlBuilder.addQueryParameter(key, value)
         }
 
-        return urlBuilder.build().toString()
+        val result = urlBuilder.build().toString()
+        return result
     }
 
     private fun createRequestBody(body: Any?): RequestBody? {
@@ -415,11 +427,15 @@ class SnipHiveApiClient {
 
     private fun <T> executeRequest(request: Request, responseType: Class<T>): ApiResponse<T> {
         return try {
+            
             val response = client.newCall(request).execute()
 
             val statusCode = response.code
             val rawBody = response.body?.string() ?: ""
             val headers = response.headers.toMap()
+            
+            
+            
 
             when {
                 statusCode in HTTP_OK..HTTP_NO_CONTENT -> {
@@ -428,12 +444,11 @@ class SnipHiveApiClient {
                     } else {
                         try {
                             // Unwrap Laravel's {"data": {...}} wrapper before deserializing.
-                            // This handles the JsonResource wrapping that Laravel applies by default.
                             val unwrappedBody = unwrapLaravelData(rawBody)
+                            
                             val data = gson.fromJson(unwrappedBody, responseType)
                             ApiResponse(success = true, data = data, statusCode = statusCode, headers = headers)
                         } catch (e: JsonSyntaxException) {
-                            LOG.error("Failed to parse JSON response from ${request.url}", e)
                             ApiResponse(success = false, error = "Invalid response format from server", statusCode = statusCode)
                         }
                     }
@@ -441,6 +456,24 @@ class SnipHiveApiClient {
                 statusCode == HTTP_UNAUTHORIZED -> {
                     LOG.warn("Authentication failed for ${request.url}")
                     ApiResponse(success = false, error = "Authentication failed. Please log in again.", statusCode = statusCode)
+                }
+                statusCode == HTTP_UNPROCESSABLE_ENTITY -> {
+                    val errorMessage = try {
+                        val errorMap = gson.fromJson(rawBody, Map::class.java)
+                        val message = errorMap["message"] as? String
+                        val error = errorMap["error"] as? String
+                        val errors = errorMap["errors"] as? Map<*, *>
+                        if (errors != null && errors.isNotEmpty()) {
+                            errors.values.joinToString(", ") { it.toString() }
+                        } else if (error != null) {
+                            error
+                        } else {
+                            message ?: "Validation failed"
+                        }
+                    } catch (e: Exception) {
+                        rawBody.ifEmpty { "Validation failed" }
+                    }
+                    ApiResponse(success = false, error = errorMessage, statusCode = statusCode)
                 }
                 statusCode == HTTP_TOO_MANY_REQUESTS -> {
                     LOG.warn("Rate limited for ${request.url}")

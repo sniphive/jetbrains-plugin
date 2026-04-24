@@ -173,7 +173,7 @@ class RecentSnippetsPopup(private val project: Project, private val editor: Edit
      */
     private fun decryptSnippetContent(snippet: Snippet): String? {
         return try {
-            val settings = SnipHiveSettings.getInstance(project)
+            val settings = SnipHiveSettings.getInstance()
             val secureStorage = SecureCredentialStorage.getInstance()
             val email = settings.getUserEmail()
 

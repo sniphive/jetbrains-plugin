@@ -154,7 +154,7 @@ class SnippetCompletionProvider : CompletionContributor() {
         resultSet: CompletionResultSet,
         parameters: CompletionParameters
     ) {
-        val settings = SnipHiveSettings.getInstance(project)
+        val settings = SnipHiveSettings.getInstance()
         val apiUrl = settings.getApiUrl()
 
         if (apiUrl.isEmpty()) {
@@ -454,7 +454,7 @@ class SnippetCompletionProvider : CompletionContributor() {
      */
     private fun decryptSnippetContent(snippet: Snippet, project: Project): String? {
         return try {
-            val settings = SnipHiveSettings.getInstance(project)
+            val settings = SnipHiveSettings.getInstance()
             val secureStorage = SecureCredentialStorage.getInstance()
             val email = settings.getUserEmail()
 

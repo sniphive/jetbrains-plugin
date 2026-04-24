@@ -20,7 +20,7 @@ class ShowRecentSnippetsAction : AnAction() {
     override fun update(e: AnActionEvent) {
         val project = e.project
         val editor = e.getData(CommonDataKeys.EDITOR)
-        val settings = project?.let { SnipHiveSettings.getInstance(it) }
+        val settings = SnipHiveSettings.getInstance()
         val isAuthenticated = project?.let { SnipHiveAuthService.getInstance().isCurrentAuthenticated(it) } ?: false
 
         e.presentation.isEnabled = project != null && editor != null && isAuthenticated

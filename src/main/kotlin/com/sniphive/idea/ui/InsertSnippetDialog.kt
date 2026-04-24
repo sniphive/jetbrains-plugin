@@ -8,6 +8,7 @@ import com.intellij.ui.components.JBList
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.components.JBTextField
 import com.intellij.ui.components.panels.VerticalLayout
+import com.intellij.ui.DocumentAdapter
 import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.UIUtil
 import com.sniphive.idea.config.SnipHiveSettings
@@ -21,7 +22,6 @@ import java.awt.Cursor
 import javax.swing.*
 import javax.swing.border.EmptyBorder
 import javax.swing.event.DocumentEvent
-import javax.swing.event.DocumentListener
 import javax.swing.event.ListSelectionListener
 
 /**
@@ -290,10 +290,10 @@ class InsertSnippetDialog(private val project: Project) : DialogWrapper(true) {
         }
 
         // Search field - debounce for typing
-        searchField.document.addDocumentListener(object : DocumentListener {
-            override fun insertUpdate(e: DocumentEvent) = scheduleSearch()
-            override fun removeUpdate(e: DocumentEvent) = scheduleSearch()
-            override fun changedUpdate(e: DocumentEvent) = scheduleSearch()
+        searchField.document.addDocumentListener(object : DocumentAdapter() {
+            override fun textChanged(e: DocumentEvent) {
+                scheduleSearch()
+            }
         })
 
         // Language combo box
@@ -463,7 +463,7 @@ class InsertSnippetDialog(private val project: Project) : DialogWrapper(true) {
         tags: List<String>
     ): List<Snippet>? {
         return try {
-            val settings = SnipHiveSettings.getInstance(project)
+            val settings = SnipHiveSettings.getInstance()
             val apiUrl = settings.getApiUrl()
             val email = settings.getUserEmail()
             if (email.isEmpty()) return null
@@ -507,7 +507,7 @@ class InsertSnippetDialog(private val project: Project) : DialogWrapper(true) {
      */
     private fun fetchTags(): List<Tag>? {
         return try {
-            val settings = SnipHiveSettings.getInstance(project)
+            val settings = SnipHiveSettings.getInstance()
             val apiUrl = settings.getApiUrl()
             val email = settings.getUserEmail()
             if (email.isEmpty()) return null

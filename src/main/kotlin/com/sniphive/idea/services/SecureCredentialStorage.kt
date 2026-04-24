@@ -7,6 +7,10 @@ import com.intellij.openapi.components.Service
 import com.intellij.openapi.components.service
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
+import java.util.concurrent.CompletableFuture
+import java.util.concurrent.Executors
+import java.util.concurrent.ScheduledExecutorService
+import java.util.concurrent.TimeUnit
 
 /**
  * Secure credential storage service using IDE Password Safe.
@@ -16,6 +20,17 @@ class SecureCredentialStorage {
 
     companion object {
         private val LOG = Logger.getInstance(SecureCredentialStorage::class.java)
+
+        // TSK-004: Non-blocking retry scheduler - schedules retries without blocking threads
+        private val RETRY_SCHEDULER: ScheduledExecutorService = Executors.newSingleThreadScheduledExecutor { r ->
+            val thread = Thread(r, "SnipHive-CredentialRetry")
+            thread.isDaemon = true  // Daemon thread - won't prevent JVM shutdown
+            thread
+        }
+
+        // In-memory token cache with LRU eviction to prevent memory leaks
+        private val tokenCache = LinkedHashMap<String, String>()
+        private const val MAX_CACHE_SIZE = 10
 
         private const val SERVICE_NAME = "SnipHive"
         private const val AUTH_TOKEN_PREFIX = "sniphive.auth.token."
@@ -35,47 +50,214 @@ class SecureCredentialStorage {
 
         @JvmStatic
         fun getInstance(): SecureCredentialStorage = service()
+
+        /**
+         * Cache token with LRU eviction.
+         * When cache reaches MAX_CACHE_SIZE, evict the oldest entry (first inserted).
+         */
+        private fun cacheToken(email: String, token: String) {
+            // LRU eviction: remove oldest entry when cache is full
+            if (tokenCache.size >= MAX_CACHE_SIZE) {
+                tokenCache.keys.firstOrNull()?.let { oldestKey ->
+                    tokenCache.remove(oldestKey)
+                }
+            }
+            tokenCache[email] = token
+        }
+
+        /**
+         * Clear all cached tokens.
+         * Called on logout to prevent memory accumulation.
+         */
+        private fun clearTokenCache() {
+            tokenCache.clear()
+        }
+
+        /**
+         * Remove specific token from cache.
+         * Called when removing auth token for a specific user.
+         */
+        private fun removeTokenFromCache(email: String) {
+            tokenCache.remove(email)
+        }
     }
 
     private fun createAttributes(key: String): CredentialAttributes {
-        return CredentialAttributes("$SERVICE_NAME:$key")
+        return CredentialAttributes(SERVICE_NAME, key)
     }
 
     fun storeAuthToken(project: Project?, email: String, token: String): Boolean {
         return try {
-            val key = "$AUTH_TOKEN_PREFIX${email.lowercase()}"
-            PasswordSafe.instance.set(createAttributes(key), Credentials(email, token))
-            LOG.debug("Authentication token stored successfully for user: ${email.lowercase()}")
+            val normalizedEmail = email.lowercase().trim()
+            val key = "$AUTH_TOKEN_PREFIX$normalizedEmail"
+
+            // Cache in memory first using LRU mechanism
+            cacheToken(normalizedEmail, token)
+
+            val credentials = Credentials(email, token)
+            
+            PasswordSafe.instance.set(createAttributes(key), credentials)
+
+            // Verify storage by immediately retrieving
+            val retrieved = PasswordSafe.instance.get(createAttributes(key))
+            
+            // Log if verification failed but still return true since we have it in memory cache
+            if (retrieved == null) {
+                LOG.warn("Auth token storage verification failed for $normalizedEmail, but token is cached in memory")
+            }
+
             true
         } catch (e: Exception) {
-            LOG.error("Failed to store authentication token for user $email", e)
+            LOG.error("Failed to store authentication token for $email", e)
             false
         }
     }
 
+/**
+     * TSK-004: Synchronous version - NO retry logic to avoid Thread.sleep blocking.
+     *
+     * This method performs a single attempt without retries. For retry logic,
+     * use getAuthTokenAsync() which uses non-blocking ScheduledExecutorService.
+     *
+     * Use this method only when:
+     * - You need immediate synchronous result
+     * - You're already on a background thread
+     * - Retry logic is not critical
+     *
+     * For EDT operations or when retries are needed, use getAuthTokenAsync().
+     *
+     * @param project The project context (can be null)
+     * @param email The user's email address
+     * @return The auth token if found in cache or PasswordSafe, null otherwise
+     */
     fun getAuthToken(project: Project?, email: String): String? {
         return try {
-            val key = "$AUTH_TOKEN_PREFIX${email.lowercase()}"
-            val credentials = PasswordSafe.instance.get(createAttributes(key))
-            val token = credentials?.getPasswordAsString()
-            if (token != null) {
-                LOG.debug("Authentication token retrieved successfully for user: ${email.lowercase()}")
+            val normalizedEmail = email.lowercase().trim()
+
+            // Check memory cache first (PasswordSafe has timing issues)
+            val cachedToken = tokenCache[normalizedEmail]
+            if (cachedToken != null) {
+                return cachedToken
             }
-            token
-        } catch (e: Exception) {
-            LOG.error("Failed to retrieve authentication token for user $email", e)
+
+            val key = "$AUTH_TOKEN_PREFIX$normalizedEmail"
+
+            // TSK-004: Single attempt only - no Thread.sleep blocking
+            // For retry logic, use getAuthTokenAsync() with non-blocking ScheduledExecutorService
+            val credentials = PasswordSafe.instance.get(createAttributes(key))
+
+            if (credentials != null) {
+                val token = credentials.getPasswordAsString()
+                if (token != null) {
+                    cacheToken(normalizedEmail, token)
+                }
+                return token
+            }
+
             null
+        } catch (e: Exception) {
+            LOG.error("Failed to retrieve authentication token for $email", e)
+            null
+        }
+    }
+
+    /**
+     * TSK-004: Non-blocking async version of getAuthToken.
+     *
+     * Uses ScheduledExecutorService to schedule retries with exponential backoff delays,
+     * without blocking the calling thread. This is the recommended approach for IntelliJ
+     * plugins where blocking Thread.sleep can block EDT or pooled threads.
+     *
+     * @param project The project context (can be null)
+     * @param email The user's email address
+     * @return CompletableFuture<String?> that completes with the token or null
+     */
+    fun getAuthTokenAsync(project: Project?, email: String): CompletableFuture<String?> {
+        val result = CompletableFuture<String?>()
+        val normalizedEmail = email.lowercase().trim()
+
+        // Check memory cache first (PasswordSafe has timing issues)
+        val cachedToken = tokenCache[normalizedEmail]
+        if (cachedToken != null) {
+            result.complete(cachedToken)
+            return result
+        }
+
+        val key = "$AUTH_TOKEN_PREFIX$normalizedEmail"
+        val maxRetries = 3
+        val initialBackoffMs = 50L
+
+        // Attempt to get credentials immediately (first try)
+        attemptCredentialRetrieval(result, key, normalizedEmail, 0, maxRetries, initialBackoffMs)
+
+        return result
+    }
+
+    /**
+     * TSK-004: Internal helper for non-blocking credential retrieval with retries.
+     *
+     * Schedules retry attempts using RETRY_SCHEDULER instead of Thread.sleep.
+     * Each retry is scheduled with exponential backoff delay.
+     *
+     * @param result The CompletableFuture to complete
+     * @param key The credential key
+     * @param normalizedEmail The normalized email for caching
+     * @param currentRetry Current retry count (0-based)
+     * @param maxRetries Maximum retry attempts
+     * @param backoffMs Current backoff delay in milliseconds
+     */
+    private fun attemptCredentialRetrieval(
+        result: CompletableFuture<String?>,
+        key: String,
+        normalizedEmail: String,
+        currentRetry: Int,
+        maxRetries: Int,
+        backoffMs: Long
+    ) {
+        try {
+            val credentials = PasswordSafe.instance.get(createAttributes(key))
+
+            if (credentials != null) {
+                // Success - cache and complete
+                val token = credentials.getPasswordAsString()
+                if (token != null) {
+                    cacheToken(normalizedEmail, token)
+                }
+                result.complete(token)
+                return
+            }
+
+            // Credentials not found - schedule retry if we have attempts left
+            if (currentRetry < maxRetries - 1) {
+                val nextRetry = currentRetry + 1
+                val nextBackoffMs = backoffMs * 2  // Exponential backoff: 50ms -> 100ms -> 200ms
+
+                // Schedule retry without blocking thread
+                RETRY_SCHEDULER.schedule({
+                    attemptCredentialRetrieval(result, key, normalizedEmail, nextRetry, maxRetries, nextBackoffMs)
+                }, backoffMs, TimeUnit.MILLISECONDS)
+            } else {
+                // Max retries exhausted - complete with null
+                result.complete(null)
+            }
+        } catch (e: Exception) {
+            LOG.warn("Error retrieving credentials on retry $currentRetry: ${e.message}")
+            result.complete(null)
         }
     }
 
     fun removeAuthToken(project: Project?, email: String): Boolean {
         return try {
-            val key = "$AUTH_TOKEN_PREFIX${email.lowercase()}"
+            val normalizedEmail = email.lowercase().trim()
+            val key = "$AUTH_TOKEN_PREFIX$normalizedEmail"
+            
+            // Clear from memory cache using removeTokenFromCache
+            removeTokenFromCache(normalizedEmail)
+            
             PasswordSafe.instance.set(createAttributes(key), null)
-            LOG.debug("Authentication token removed successfully for user: ${email.lowercase()}")
             true
         } catch (e: Exception) {
-            LOG.error("Failed to remove authentication token for user $email", e)
+            LOG.error("Failed to remove authentication token for $email", e)
             false
         }
     }
@@ -84,7 +266,6 @@ class SecureCredentialStorage {
         return try {
             val key = "$API_KEY_PREFIX${email.lowercase()}"
             PasswordSafe.instance.set(createAttributes(key), Credentials(email, apiKey))
-            LOG.debug("API key stored successfully for user: ${email.lowercase()}")
             true
         } catch (e: Exception) {
             LOG.error("Failed to store API key for user $email", e)
@@ -107,7 +288,6 @@ class SecureCredentialStorage {
         return try {
             val key = "$API_KEY_PREFIX${email.lowercase()}"
             PasswordSafe.instance.set(createAttributes(key), null)
-            LOG.debug("API key removed successfully for user: ${email.lowercase()}")
             true
         } catch (e: Exception) {
             LOG.error("Failed to remove API key for user $email", e)
@@ -119,7 +299,6 @@ class SecureCredentialStorage {
         return try {
             val key = "$PRIVATE_KEY_PREFIX${email.lowercase()}"
             PasswordSafe.instance.set(createAttributes(key), Credentials(email, privateKey))
-            LOG.debug("Private key stored successfully for user: ${email.lowercase()}")
             true
         } catch (e: Exception) {
             LOG.error("Failed to store private key for user $email", e)
@@ -141,7 +320,6 @@ class SecureCredentialStorage {
         return try {
             val key = "$PRIVATE_KEY_PREFIX${email.lowercase()}"
             PasswordSafe.instance.set(createAttributes(key), null)
-            LOG.debug("Private key removed successfully for user: ${email.lowercase()}")
             true
         } catch (e: Exception) {
             LOG.error("Failed to remove private key for user $email", e)
@@ -153,7 +331,6 @@ class SecureCredentialStorage {
         return try {
             val key = "$PUBLIC_KEY_PREFIX${email.lowercase()}"
             PasswordSafe.instance.set(createAttributes(key), Credentials(email, publicKey))
-            LOG.debug("Public key stored successfully for user: ${email.lowercase()}")
             true
         } catch (e: Exception) {
             LOG.error("Failed to store public key for user $email", e)
@@ -175,7 +352,6 @@ class SecureCredentialStorage {
         return try {
             val key = "$PUBLIC_KEY_PREFIX${email.lowercase()}"
             PasswordSafe.instance.set(createAttributes(key), null)
-            LOG.debug("Public key removed successfully for user: ${email.lowercase()}")
             true
         } catch (e: Exception) {
             LOG.error("Failed to remove public key for user $email", e)
@@ -187,7 +363,6 @@ class SecureCredentialStorage {
         return try {
             val key = "$RECOVERY_CODE_PREFIX${email.lowercase()}"
             PasswordSafe.instance.set(createAttributes(key), Credentials(email, recoveryCode))
-            LOG.debug("Recovery code stored successfully for user: ${email.lowercase()}")
             true
         } catch (e: Exception) {
             LOG.error("Failed to store recovery code for user $email", e)
@@ -209,7 +384,6 @@ class SecureCredentialStorage {
         return try {
             val key = "$RECOVERY_CODE_PREFIX${email.lowercase()}"
             PasswordSafe.instance.set(createAttributes(key), null)
-            LOG.debug("Recovery code removed successfully for user: ${email.lowercase()}")
             true
         } catch (e: Exception) {
             LOG.error("Failed to remove recovery code for user $email", e)
@@ -221,7 +395,6 @@ class SecureCredentialStorage {
         return try {
             val key = "$PASSWORD_PREFIX${email.lowercase()}"
             PasswordSafe.instance.set(createAttributes(key), Credentials(email, password))
-            LOG.debug("Password stored successfully for user: ${email.lowercase()}")
             true
         } catch (e: Exception) {
             LOG.error("Failed to store password for user $email", e)
@@ -243,7 +416,6 @@ class SecureCredentialStorage {
         return try {
             val key = "$PASSWORD_PREFIX${email.lowercase()}"
             PasswordSafe.instance.set(createAttributes(key), null)
-            LOG.debug("Password removed successfully for user: ${email.lowercase()}")
             true
         } catch (e: Exception) {
             LOG.error("Failed to remove password for user $email", e)
@@ -260,7 +432,6 @@ class SecureCredentialStorage {
         return try {
             val key = "$MASTER_PASSWORD_PREFIX${email.lowercase()}"
             PasswordSafe.instance.set(createAttributes(key), Credentials(email, masterPassword))
-            LOG.debug("Master password stored successfully for user: ${email.lowercase()}")
             true
         } catch (e: Exception) {
             LOG.error("Failed to store master password for user $email", e)
@@ -288,7 +459,6 @@ class SecureCredentialStorage {
         return try {
             val key = "$MASTER_PASSWORD_PREFIX${email.lowercase()}"
             PasswordSafe.instance.set(createAttributes(key), null)
-            LOG.debug("Master password removed successfully for user: ${email.lowercase()}")
             true
         } catch (e: Exception) {
             LOG.error("Failed to remove master password for user $email", e)
@@ -296,7 +466,7 @@ class SecureCredentialStorage {
         }
     }
 
-    fun removeAllCredentialsForUser(project: Project?, email: String): Boolean {
+fun removeAllCredentialsForUser(project: Project?, email: String): Boolean {
         var allSuccess = true
         allSuccess = removeAuthToken(project, email) && allSuccess
         allSuccess = removeApiKey(project, email) && allSuccess
@@ -306,9 +476,10 @@ class SecureCredentialStorage {
         allSuccess = removePassword(project, email) && allSuccess
         allSuccess = removeMasterPassword(project, email) && allSuccess
 
-        if (allSuccess) {
-            LOG.info("All credentials removed successfully for user: ${email.lowercase()}")
-        } else {
+        // Clear all cached tokens on logout to prevent memory accumulation
+        clearTokenCache()
+
+        if (!allSuccess) {
             LOG.warn("Some credentials could not be removed for user: ${email.lowercase()}")
         }
         return allSuccess
@@ -432,9 +603,7 @@ class SecureCredentialStorage {
         allSuccess = storeRecoverySalt(project, email, recoverySalt) && allSuccess
         allSuccess = storeE2EEIterations(project, email, kdfIterations) && allSuccess
 
-        if (allSuccess) {
-            LOG.info("All E2EE data stored successfully for user: ${email.lowercase()}")
-        } else {
+        if (!allSuccess) {
             LOG.warn("Some E2EE data could not be stored for user: ${email.lowercase()}")
         }
         return allSuccess

@@ -1,10 +1,10 @@
 package com.sniphive.idea.config
 
+import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.PersistentStateComponent
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.components.State
 import com.intellij.openapi.components.Storage
-import com.intellij.openapi.project.Project
 import com.sniphive.idea.services.SecureCredentialStorage
 
 /**
@@ -22,7 +22,7 @@ import com.sniphive.idea.services.SecureCredentialStorage
     name = "SnipHiveSettings",
     storages = [Storage("SnipHiveSettings.xml")]
 )
-@Service(Service.Level.PROJECT)
+@Service(Service.Level.APP)
 class SnipHiveSettings : PersistentStateComponent<SnipHiveSettings.State> {
 
     /**
@@ -281,14 +281,14 @@ class SnipHiveSettings : PersistentStateComponent<SnipHiveSettings.State> {
 
     companion object {
         /**
-         * Get the settings instance for the specified project.
+         * Get the application-level settings instance.
+         * Settings are now shared across all projects (APP-level service).
          *
-         * @param project The project to get settings for
          * @return The settings instance
          */
         @JvmStatic
-        fun getInstance(project: Project): SnipHiveSettings {
-            return project.getService(SnipHiveSettings::class.java)
+        fun getInstance(): SnipHiveSettings {
+            return ApplicationManager.getApplication().getService(SnipHiveSettings::class.java)
         }
 
         /**

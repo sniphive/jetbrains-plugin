@@ -68,6 +68,7 @@
         <applicationService serviceImplementation="com.sniphive.idea.services.SnipHiveApiClient"/>
         <applicationService serviceImplementation="com.sniphive.idea.services.SnipHiveApiService"/>
         <applicationService serviceImplementation="com.sniphive.idea.services.SecureCredentialStorage"/>
+        <applicationService serviceImplementation="com.sniphive.idea.config.SnipHiveSettings"/>
 
         <!-- Persistent settings -->
         <applicationConfigurable
