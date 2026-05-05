@@ -52,9 +52,17 @@ class SnipHiveSettingsConfigurable : Configurable {
 
     /**
      * Get the active project settings.
+     *
+     * Returns null when no project is open (e.g. during buildSearchableOptions)
+     * to avoid crashing in headless/background environments.
      */
     private fun getActiveProjectSettings(): SnipHiveSettings? {
-        return SnipHiveSettings.getInstance()
+        return try {
+            SnipHiveSettings.getInstance()
+        } catch (e: IllegalStateException) {
+            // No open project — safe to skip UI initialization
+            null
+        }
     }
 
     /**
