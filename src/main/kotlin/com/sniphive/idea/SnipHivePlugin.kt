@@ -35,19 +35,13 @@ class SnipHivePlugin private constructor() {
          * Get the plugin ID
          */
         @JvmStatic
-        val pluginId: String = "net.sniphive.plugin"
+        val pluginId: String = "com.sniphive.plugin"
 
         /**
          * Minimum supported IDE build number
          */
         @JvmStatic
-        val minIdeaVersion: String = "232"
-
-        /**
-         * Maximum supported IDE build number
-         */
-        @JvmStatic
-        val maxIdeaVersion: String = "250.*"
+        val minIdeaVersion: String = "241"
     }
 
     /**
