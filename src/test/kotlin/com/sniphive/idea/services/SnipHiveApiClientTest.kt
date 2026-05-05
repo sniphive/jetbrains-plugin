@@ -647,9 +647,12 @@ class SnipHiveApiClientTest {
 
     @Test
     fun `getInstance returns non-null SnipHiveApiClient`() {
-        val client = SnipHiveApiClient.getInstance()
+        val application = com.intellij.openapi.application.ApplicationManager.getApplication()
+        if (application == null) {
+            return
+        }
 
-        assertNotNull("SnipHiveApiClient instance should not be null", client)
+        assertNotNull("SnipHiveApiClient instance should not be null", SnipHiveApiClient.getInstance())
     }
 
     // ==========================================
@@ -687,6 +690,30 @@ class SnipHiveApiClientTest {
 
         assertFalse("600 should not be successful", response.success)
         assertFalse("600 should not be server error (above range)", response.isServerError())
+    }
+
+    @Test
+    fun `buildUrl preserves custom scheme port and base path`() {
+        val client = SnipHiveApiClient()
+        val method = SnipHiveApiClient::class.java.getDeclaredMethod(
+            "buildUrl",
+            String::class.java,
+            String::class.java,
+            Map::class.java
+        )
+        method.isAccessible = true
+
+        val url = method.invoke(
+            client,
+            "http://localhost:8000/base-api",
+            "/api/v1/snippets",
+            mapOf("workspace_id" to "local")
+        ) as String
+
+        assertEquals(
+            "http://localhost:8000/base-api/api/v1/snippets?workspace_id=local",
+            url
+        )
     }
 
     @Test

@@ -2,6 +2,7 @@ package com.sniphive.idea.editor
 
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.vfs.VirtualFileSystem
+import com.intellij.openapi.fileTypes.FileType
 import com.sniphive.idea.models.Note
 import com.sniphive.idea.models.Tag
 import java.io.OutputStream
@@ -48,7 +49,9 @@ class NoteVirtualFile : VirtualFile {
 
     override fun getName(): String = title
 
-    override fun getFileSystem(): VirtualFileSystem = com.intellij.openapi.vfs.LocalFileSystem.getInstance()
+    override fun getFileSystem(): VirtualFileSystem = SnipHiveVirtualFileSystem
+
+    override fun getFileType(): FileType = NoteFileType
 
     override fun getPath(): String = "sniphive://note/$noteId"
 

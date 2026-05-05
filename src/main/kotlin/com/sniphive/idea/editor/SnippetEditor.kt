@@ -224,7 +224,7 @@ class SnippetEditor(
         ApplicationManager.getApplication().executeOnPooledThread {
             try {
                 val apiService = SnipHiveApiService.getInstance()
-                val settings = com.sniphive.idea.config.SnipHiveSettings.getInstance()
+                val settings = com.sniphive.idea.config.SnipHiveSettings.getInstance(project)
                 val email = settings.getUserEmail()
 
                 val title = virtualFile.title

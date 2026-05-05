@@ -85,7 +85,7 @@ class RSACryptoTest {
 
     @Test
     fun `encrypt can handle maximum data size`() {
-        val maxSize = 470
+        val maxSize = RSACrypto.MAX_OAEP_SHA256_DATA_SIZE
         val largeData = ByteArray(maxSize) { it.toByte() }
 
         val encrypted = RSACrypto.encrypt(keyPair.public, largeData)
@@ -102,7 +102,7 @@ class RSACryptoTest {
 
     @Test(expected = IllegalArgumentException::class)
     fun `encrypt throws exception for data exceeding maximum size`() {
-        val tooLargeData = ByteArray(471) { it.toByte() }
+        val tooLargeData = ByteArray(RSACrypto.MAX_OAEP_SHA256_DATA_SIZE + 1) { it.toByte() }
         RSACrypto.encrypt(keyPair.public, tooLargeData)
     }
 

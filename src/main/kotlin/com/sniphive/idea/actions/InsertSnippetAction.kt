@@ -71,7 +71,6 @@ class InsertSnippetAction : AnAction() {
         val isEnabled = project != null &&
                 editor != null &&
                 isAuthenticated &&
-                settings != null &&
                 settings.getApiUrl().isNotEmpty()
 
         event.presentation.isEnabledAndVisible = isEnabled

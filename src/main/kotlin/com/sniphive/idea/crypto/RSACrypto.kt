@@ -23,7 +23,7 @@ import javax.crypto.Cipher
  * - OAEP padding with SHA-256 (prevents chosen ciphertext attacks)
  * - MGF1 with SHA-256 as the mask generation function
  * - Public exponent 65537 (0x10001) for optimal security and performance
- * - Maximum encryptable data size: 470 bytes (for 4096-bit RSA with OAEP-SHA256)
+ * - Maximum encryptable data size: 446 bytes (for 4096-bit RSA with OAEP-SHA256)
  *
  * @see java.security.KeyPairGenerator
  * @see javax.crypto.Cipher
@@ -38,6 +38,7 @@ class RSACrypto {
         const val PUBLIC_EXPONENT = 65537 // 0x10001 (standard F4 value)
         const val TRANSFORMATION = "RSA/ECB/OAEPWithSHA-256AndMGF1Padding"
         const val KEY_ALGORITHM = "RSA"
+        const val MAX_OAEP_SHA256_DATA_SIZE = (RSA_MODULUS_LENGTH / 8) - (2 * 32) - 2
 
         // Provider initialization
         init {
@@ -75,7 +76,7 @@ class RSACrypto {
          * 4096-bit RSA with OAEP-SHA256 padding.
          *
          * @param publicKey The public key to encrypt with
-         * @param data The plaintext data to encrypt (max 470 bytes for 4096-bit RSA)
+         * @param data The plaintext data to encrypt (max 446 bytes for 4096-bit RSA)
          * @return The encrypted data as a ByteArray
          * @throws IllegalArgumentException if data is null or too large
          * @throws RuntimeException if encryption fails
@@ -88,10 +89,8 @@ class RSACrypto {
                 throw IllegalArgumentException("Data cannot be empty")
             }
 
-            // Max encryptable size for RSA-4096 with OAEP-SHA256
-            // Formula: (modulus_length_bytes - 2 * hash_length_bytes - 2)
-            // 512 - 2*32 - 2 = 446 bytes, but we use 470 for safety
-            val maxDataSize = 470
+            // Formula: modulus_length_bytes - 2 * hash_length_bytes - 2
+            val maxDataSize = MAX_OAEP_SHA256_DATA_SIZE
             if (data.size > maxDataSize) {
                 throw IllegalArgumentException(
                     "Data too large for RSA-4096-OAEP encryption. " +

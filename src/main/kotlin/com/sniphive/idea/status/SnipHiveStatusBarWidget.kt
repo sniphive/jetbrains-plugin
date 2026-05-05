@@ -7,6 +7,7 @@ import com.intellij.openapi.wm.StatusBar
 import com.intellij.openapi.wm.StatusBarWidget
 import com.intellij.openapi.wm.StatusBarWidgetFactory
 import com.intellij.util.Consumer
+import com.intellij.util.messages.MessageBusConnection
 import com.sniphive.idea.config.SnipHiveSettings
 import com.sniphive.idea.services.NoteLookupService
 import com.sniphive.idea.services.SnippetLookupService
@@ -36,6 +37,7 @@ class SnipHiveStatusBarWidget(private val project: Project) : StatusBarWidget {
     }
 
     private var statusBar: StatusBar? = null
+    private var busConnection: MessageBusConnection? = null
 
     override fun ID(): String = ID
 
@@ -99,6 +101,7 @@ class SnipHiveStatusBarWidget(private val project: Project) : StatusBarWidget {
 
         // Subscribe to cache changes to update widget
         val bus = ApplicationManager.getApplication().messageBus.connect()
+        busConnection = bus
 
         bus.subscribe(SnippetLookupService.SNIPPET_CACHE_TOPIC, object : SnippetCacheListener {
             override fun onRefreshStarted() {
@@ -132,6 +135,8 @@ class SnipHiveStatusBarWidget(private val project: Project) : StatusBarWidget {
     }
 
     override fun dispose() {
+        busConnection?.dispose()
+        busConnection = null
         statusBar = null
     }
 

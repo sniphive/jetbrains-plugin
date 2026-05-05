@@ -1,6 +1,5 @@
 package com.sniphive.idea.ui
 
-import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.DialogWrapper
@@ -10,8 +9,8 @@ import com.intellij.util.ui.JBUI
 import com.sniphive.idea.config.SnipHiveSettings
 import com.sniphive.idea.crypto.E2EECryptoService
 import com.sniphive.idea.crypto.E2EEProfile
+import com.sniphive.idea.crypto.RSACrypto
 import com.sniphive.idea.services.SecureCredentialStorage
-import java.awt.BorderLayout
 import java.awt.GridBagConstraints
 import java.awt.GridBagLayout
 import java.awt.Insets
@@ -25,8 +24,8 @@ import javax.swing.*
  * - Private key is not yet decrypted in session
  *
  * Security Note:
- * - Master password is never stored
- * - Only used to decrypt private key in memory
+ * - Master password is stored in IDE Password Safe after successful unlock for auto-unlock.
+ * - Decrypted private key is stored through secure credential storage for the current IDE session.
  */
 class MasterPasswordDialog(
     private val project: Project,
@@ -118,11 +117,14 @@ class MasterPasswordDialog(
 
             // Store decrypted private key in memory (secure storage)
             val secureStorage = SecureCredentialStorage.getInstance()
-            val privateKeyJwk = com.google.gson.JsonParser.parseString(
-                com.sniphive.idea.crypto.RSACrypto.exportPrivateKeyToJWK(privateKey).toString()
-            ).asString
+            val privateKeyJwk = RSACrypto.exportPrivateKeyToJWK(privateKey).toString()
 
             secureStorage.storePrivateKey(project, email, privateKeyJwk)
+            secureStorage.storeMasterPassword(project, email, password)
+            SnipHiveSettings.getInstance(project).apply {
+                setRememberMasterPassword(true)
+                setE2eeUnlocked(true)
+            }
 
             unlockSuccessful = true
             LOG.info("E2EE unlocked successfully for user: $email")

@@ -334,9 +334,7 @@ class InsertSnippetDialog(private val project: Project) : DialogWrapper(true) {
                     setAvailableTags(tags)
                 }
 
-                if (languages != null) {
-                    setAvailableLanguages(languages)
-                }
+                setAvailableLanguages(languages)
 
                 // Perform initial search
                 performSearch()

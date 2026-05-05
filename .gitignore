@@ -10,3 +10,6 @@ build
 .opencode
 .memory
 AGENTS.md
+graphify-out
+.graphify*
+openspec

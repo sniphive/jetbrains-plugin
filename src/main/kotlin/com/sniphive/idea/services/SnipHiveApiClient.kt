@@ -11,6 +11,7 @@ import com.intellij.openapi.diagnostic.Logger
 import okhttp3.*
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.HttpUrl.Companion.toHttpUrl
 import java.io.IOException
 import java.util.concurrent.TimeUnit
 
@@ -111,7 +112,7 @@ class SnipHiveApiClient {
         fun isAuthError(): Boolean = statusCode == HTTP_UNAUTHORIZED || statusCode == HTTP_FORBIDDEN
         fun isValidationError(): Boolean = statusCode == HTTP_UNPROCESSABLE_ENTITY || statusCode == HTTP_BAD_REQUEST
         fun isRateLimitError(): Boolean = statusCode == HTTP_TOO_MANY_REQUESTS
-        fun isServerError(): Boolean = statusCode >= HTTP_SERVER_ERROR
+        fun isServerError(): Boolean = statusCode in HTTP_SERVER_ERROR..599
         fun isNotFoundError(): Boolean = statusCode == HTTP_NOT_FOUND
     }
 
@@ -359,14 +360,10 @@ class SnipHiveApiClient {
     }
 
     private fun buildUrl(apiUrl: String, endpoint: String, queryParams: Map<String, String>?): String {
-        
-        val baseUrl = apiUrl.trimEnd('/')
+        val baseUrl = apiUrl.trimEnd('/').toHttpUrl()
         val path = endpoint.trimStart('/')
-        
-        
-        val urlBuilder = HttpUrl.Builder()
-            .scheme("https")
-            .host(apiUrl.removePrefix("https://").removePrefix("http://").removeSuffix("/"))
+
+        val urlBuilder = baseUrl.newBuilder()
             .addPathSegments(path)
 
         queryParams?.forEach { (key, value) ->

@@ -1,10 +1,11 @@
 package com.sniphive.idea.config
 
-import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.PersistentStateComponent
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.components.State
 import com.intellij.openapi.components.Storage
+import com.intellij.openapi.project.Project
+import com.intellij.openapi.project.ProjectManager
 import com.sniphive.idea.services.SecureCredentialStorage
 
 /**
@@ -22,7 +23,7 @@ import com.sniphive.idea.services.SecureCredentialStorage
     name = "SnipHiveSettings",
     storages = [Storage("SnipHiveSettings.xml")]
 )
-@Service(Service.Level.APP)
+@Service(Service.Level.PROJECT)
 class SnipHiveSettings : PersistentStateComponent<SnipHiveSettings.State> {
 
     /**
@@ -276,19 +277,30 @@ class SnipHiveSettings : PersistentStateComponent<SnipHiveSettings.State> {
      * Note: This retrieves from SecureCredentialStorage, not from local state.
      */
     fun getMasterPassword(): String {
-        return SecureCredentialStorage.getInstance().getPassword(null, state.userEmail) ?: ""
+        return SecureCredentialStorage.getInstance().getMasterPassword(null, state.userEmail) ?: ""
     }
 
     companion object {
         /**
-         * Get the application-level settings instance.
-         * Settings are now shared across all projects (APP-level service).
+         * Get the settings instance for the specified project.
          *
+         * @param project The project to get settings for
          * @return The settings instance
          */
         @JvmStatic
+        fun getInstance(project: Project): SnipHiveSettings {
+            return project.getService(SnipHiveSettings::class.java)
+        }
+
+        /**
+         * Backward-compatible fallback for UI surfaces that do not receive a project.
+         * Prefer getInstance(project) for auth, API and E2EE flows.
+         */
+        @JvmStatic
         fun getInstance(): SnipHiveSettings {
-            return ApplicationManager.getApplication().getService(SnipHiveSettings::class.java)
+            val project = ProjectManager.getInstance().openProjects.firstOrNull()
+                ?: error("SnipHiveSettings requires an open project")
+            return getInstance(project)
         }
 
         /**

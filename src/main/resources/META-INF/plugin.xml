@@ -53,7 +53,7 @@
     </change-notes>
 
     <!-- Product and plugin icons -->
-    <idea-version since-build="232" until-build="241.*"/>
+    <idea-version since-build="241" until-build="250.*"/>
 
     <!-- Dependencies -->
     <depends>com.intellij.modules.platform</depends>

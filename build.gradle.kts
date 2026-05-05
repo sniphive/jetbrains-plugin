@@ -5,7 +5,7 @@ plugins {
 }
 
 group = "com.sniphive"
-version = "1.0.0"
+version = "1.1.0"
 
 repositories {
     mavenCentral()
@@ -16,14 +16,14 @@ repositories {
 
 dependencies {
     intellijPlatform {
-        intellijIdea("2024.1")
+        intellijIdeaCommunity("2024.1")
     }
 
     implementation("org.jetbrains.kotlin:kotlin-stdlib")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("com.squareup.okhttp3:okhttp-sse:4.12.0")
     implementation("com.google.code.gson:gson:2.10.1")
-    implementation("org.bouncycastle:bcprov-jdk18on:1.76")
+    implementation("org.bouncycastle:bcprov-jdk18on:1.84")
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.mockito:mockito-core:5.7.0")
 }
@@ -36,6 +36,7 @@ intellijPlatform {
     pluginConfiguration {
         ideaVersion {
             sinceBuild = "241"
+            untilBuild = "250.*"
         }
     }
 

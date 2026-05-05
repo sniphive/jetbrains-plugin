@@ -2,6 +2,7 @@ package com.sniphive.idea.services
 
 import com.sniphive.idea.config.SnipHiveSettings
 import com.sniphive.idea.models.LoginResponse
+import com.intellij.openapi.Disposable
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.components.service
 import com.intellij.openapi.diagnostic.Logger
@@ -12,7 +13,7 @@ import java.util.concurrent.ConcurrentHashMap
  * Authentication service for SnipHive API login and token management.
  */
 @Service(Service.Level.APP)
-class SnipHiveAuthService {
+class SnipHiveAuthService : Disposable {
 
     companion object {
         private val LOG = Logger.getInstance(SnipHiveAuthService::class.java)
@@ -60,7 +61,7 @@ class SnipHiveAuthService {
 
                 if (tokenStored) {
                     if (project != null) {
-                        val settings = SnipHiveSettings.getInstance()
+                        val settings = SnipHiveSettings.getInstance(project)
                         settings.setUserEmail(email)
                         loginData.user?.name?.let { settings.setUserName(it) }
                         // Set first workspace as default if available
@@ -106,14 +107,14 @@ class SnipHiveAuthService {
 
     fun getCurrentAuthToken(project: Project?): String? {
         return if (project != null) {
-            val settings = SnipHiveSettings.getInstance()
+            val settings = SnipHiveSettings.getInstance(project)
             val email = settings.getUserEmail()
             if (email.isNotEmpty()) getAuthToken(project, email) else null
         } else null
     }
 
     fun isCurrentAuthenticated(project: Project): Boolean {
-        val settings = SnipHiveSettings.getInstance()
+        val settings = SnipHiveSettings.getInstance(project)
         val email = settings.getUserEmail()
         return email.isNotEmpty() && isAuthenticated(project, email)
     }
@@ -128,8 +129,12 @@ class SnipHiveAuthService {
             // API doesn't have logout endpoint - just remove token locally
             val tokenRemoved = secureStorage.removeAuthToken(project, email)
 
+            // Clear in-memory caches to prevent memory accumulation
+            SecureCredentialStorage.clearCredentialCaches()
+            projectSettingsCache.clear()
+
             if (project != null) {
-                val settings = SnipHiveSettings.getInstance()
+                val settings = SnipHiveSettings.getInstance(project)
                 settings.setUserEmail("")
                 settings.setUserName("")
                 settings.setWorkspaceId("")
@@ -150,10 +155,23 @@ class SnipHiveAuthService {
     }
 
     fun verifyToken(project: Project?, apiUrl: String, email: String): Boolean {
-        // Verify by checking if token exists locally
-        // A more robust approach would be to call /api/v1/snippets or similar endpoint
-        val token = getAuthToken(project, email)
-        return token != null
+        val token = getAuthToken(project, email) ?: return false
+        return try {
+            val apiClient = SnipHiveApiClient.getInstance()
+            val response = apiClient.get<Any>(
+                apiUrl = apiUrl,
+                endpoint = "/api/v1/security/status",
+                token = token,
+                responseType = Any::class.java
+            )
+            if (!response.success) {
+                LOG.warn("Token validation failed for $email: HTTP ${response.statusCode} – ${response.error}")
+            }
+            response.success
+        } catch (e: Exception) {
+            LOG.warn("Token validation failed for $email: ${e.message}")
+            false
+        }
     }
 
     fun clearAllCredentials(project: Project?, email: String): Boolean {
@@ -165,5 +183,10 @@ class SnipHiveAuthService {
             LOG.error("Failed to clear credentials for user ${email.lowercase()}", e)
             false
         }
+    }
+
+    override fun dispose() {
+        LOG.info("Disposing SnipHiveAuthService")
+        projectSettingsCache.clear()
     }
 }

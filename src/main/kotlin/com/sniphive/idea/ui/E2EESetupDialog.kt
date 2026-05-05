@@ -12,7 +12,6 @@ import com.intellij.util.ui.UIUtil
 import com.sniphive.idea.config.SnipHiveSettings
 import com.sniphive.idea.crypto.E2EECryptoService
 import com.sniphive.idea.crypto.E2EESetupResult
-import com.sniphive.idea.services.SecureCredentialStorage
 import java.awt.BorderLayout
 import java.awt.CardLayout
 import java.awt.Color
@@ -369,11 +368,6 @@ class E2EESetupDialog(private val project: Project) : DialogWrapper(true) {
                         LOG.warn("User email not found in settings")
                         return@invokeLaterIfNeeded
                     }
-                    val credentialStorage = SecureCredentialStorage.getInstance()
-
-                    // Store recovery code in secure storage (optional convenience)
-                    credentialStorage.storeRecoveryCode(project, email, setupResult!!.recoveryCode)
-
                     // Switch to recovery code phase
                     switchToRecoveryCodePhase()
                 } else {

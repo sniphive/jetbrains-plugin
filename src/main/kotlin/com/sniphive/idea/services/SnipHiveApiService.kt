@@ -32,7 +32,7 @@ class SnipHiveApiService {
 
     companion object {
         private val LOG = Logger.getInstance(SnipHiveApiService::class.java)
-        private const val API_URL = "https://api.sniphive.net"
+        const val DEFAULT_API_URL = "https://api.sniphive.net"
 
         // Endpoints
         private const val SNIPPETS_ENDPOINT = "/api/v1/snippets"
@@ -57,7 +57,7 @@ class SnipHiveApiService {
             return null
         }
 
-        val settings = SnipHiveSettings.getInstance()
+        val settings = SnipHiveSettings.getInstance(project)
         val email = settings.getUserEmail()
 
         if (email.isEmpty()) {
@@ -74,8 +74,15 @@ class SnipHiveApiService {
      */
     private fun getWorkspaceId(project: Project?): String? {
         if (project == null) return null
-        val settings = SnipHiveSettings.getInstance()
+        val settings = SnipHiveSettings.getInstance(project)
         return settings.getWorkspaceId().ifEmpty { null }
+    }
+
+    /**
+     * Get the configured API URL, falling back to production for old/empty settings.
+     */
+    private fun getApiUrl(project: Project): String {
+        return SnipHiveSettings.getInstance(project).getApiUrl().ifBlank { DEFAULT_API_URL }
     }
 
     /**
@@ -94,7 +101,7 @@ class SnipHiveApiService {
         val apiClient = SnipHiveApiClient.getInstance()
 
         val snippets = apiClient.getPaginated(
-            apiUrl = API_URL,
+            apiUrl = getApiUrl(project),
             endpoint = SNIPPETS_ENDPOINT,
             token = token,
             itemClass = Snippet::class.java,
@@ -114,7 +121,7 @@ class SnipHiveApiService {
 
         val apiClient = SnipHiveApiClient.getInstance()
         val response = apiClient.get<Snippet>(
-            apiUrl = API_URL,
+            apiUrl = getApiUrl(project),
             endpoint = "$SNIPPETS_ENDPOINT/$snippetSlug",
             token = token,
             responseType = Snippet::class.java,
@@ -158,7 +165,7 @@ class SnipHiveApiService {
 
         val apiClient = SnipHiveApiClient.getInstance()
         val response = apiClient.post<Snippet>(
-            apiUrl = API_URL,
+            apiUrl = getApiUrl(project),
             endpoint = SNIPPETS_ENDPOINT,
             token = token,
             body = body,
@@ -184,7 +191,7 @@ class SnipHiveApiService {
 
         val apiClient = SnipHiveApiClient.getInstance()
         return apiClient.getPaginated(
-            apiUrl = API_URL,
+            apiUrl = getApiUrl(project),
             endpoint = TAGS_ENDPOINT,
             token = token,
             itemClass = Tag::class.java,
@@ -201,7 +208,7 @@ class SnipHiveApiService {
 
         val apiClient = SnipHiveApiClient.getInstance()
         val response = apiClient.get<SecurityStatus>(
-            apiUrl = API_URL,
+            apiUrl = getApiUrl(project),
             endpoint = SECURITY_STATUS_ENDPOINT,
             token = token,
             responseType = SecurityStatus::class.java,
@@ -245,7 +252,7 @@ class SnipHiveApiService {
 
         val apiClient = SnipHiveApiClient.getInstance()
         val response = apiClient.post<Any>(
-            apiUrl = API_URL,
+            apiUrl = getApiUrl(project),
             endpoint = SECURITY_SETUP_ENDPOINT,
             token = token,
             body = body,
@@ -274,7 +281,8 @@ class SnipHiveApiService {
         tags: List<String>? = null,
         archivedAt: String? = null,
         encryptedDek: String? = null,
-        isPublic: Boolean? = null
+        isPublic: Boolean? = null,
+        updateArchivedAt: Boolean = false
     ): Snippet? {
         val token = getToken(project) ?: return null
         val workspaceId = getWorkspaceId(project)
@@ -285,12 +293,14 @@ class SnipHiveApiService {
         language?.let { body["language"] = it }
         tags?.let { body["tags"] = it }
         encryptedDek?.let { body["encrypted_dek"] = it }
-        body["archived_at"] = archivedAt
+        if (updateArchivedAt) {
+            body["archived_at"] = archivedAt
+        }
         isPublic?.let { body["is_public"] = it }
 
         val apiClient = SnipHiveApiClient.getInstance()
         val response = apiClient.put<Snippet>(
-            apiUrl = API_URL,
+            apiUrl = getApiUrl(project),
             endpoint = "$SNIPPETS_ENDPOINT/$snippetSlug",
             token = token,
             body = body,
@@ -322,7 +332,8 @@ class SnipHiveApiService {
             tags = snippet.tags?.map { it.id },
             archivedAt = timestamp,
             encryptedDek = snippet.encryptedDek,
-            isPublic = snippet.isPublic
+            isPublic = snippet.isPublic,
+            updateArchivedAt = true
         )
     }
 
@@ -340,7 +351,8 @@ class SnipHiveApiService {
             tags = snippet.tags?.map { it.id },
             archivedAt = null,
             encryptedDek = snippet.encryptedDek,
-            isPublic = snippet.isPublic
+            isPublic = snippet.isPublic,
+            updateArchivedAt = true
         )
     }
 
@@ -354,7 +366,7 @@ class SnipHiveApiService {
 
         val apiClient = SnipHiveApiClient.getInstance()
         val response = apiClient.delete(
-            apiUrl = API_URL,
+            apiUrl = getApiUrl(project),
             endpoint = "$SNIPPETS_ENDPOINT/$snippetSlug",
             token = token,
             workspaceId = workspaceId
@@ -379,7 +391,7 @@ class SnipHiveApiService {
 
         val apiClient = SnipHiveApiClient.getInstance()
         val response = apiClient.post<Snippet>(
-            apiUrl = API_URL,
+            apiUrl = getApiUrl(project),
             endpoint = "$SNIPPETS_ENDPOINT/$snippetSlug/pin",
             token = token,
             body = null,
@@ -406,7 +418,7 @@ class SnipHiveApiService {
 
         val apiClient = SnipHiveApiClient.getInstance()
         val response = apiClient.post<Snippet>(
-            apiUrl = API_URL,
+            apiUrl = getApiUrl(project),
             endpoint = "$SNIPPETS_ENDPOINT/$snippetSlug/favorite",
             token = token,
             body = null,
@@ -436,7 +448,7 @@ class SnipHiveApiService {
 
         val apiClient = SnipHiveApiClient.getInstance()
         return apiClient.getPaginated(
-            apiUrl = API_URL,
+            apiUrl = getApiUrl(project),
             endpoint = NOTES_ENDPOINT,
             token = token,
             itemClass = Note::class.java,
@@ -454,7 +466,7 @@ class SnipHiveApiService {
 
         val apiClient = SnipHiveApiClient.getInstance()
         val response = apiClient.get<Note>(
-            apiUrl = API_URL,
+            apiUrl = getApiUrl(project),
             endpoint = "$NOTES_ENDPOINT/$noteSlug",
             token = token,
             responseType = Note::class.java,
@@ -494,7 +506,7 @@ class SnipHiveApiService {
 
         val apiClient = SnipHiveApiClient.getInstance()
         val response = apiClient.post<Note>(
-            apiUrl = API_URL,
+            apiUrl = getApiUrl(project),
             endpoint = NOTES_ENDPOINT,
             token = token,
             body = body,
@@ -523,7 +535,8 @@ class SnipHiveApiService {
         tags: List<String>? = null,
         archivedAt: String? = null,
         encryptedDek: String? = null,
-        isPublic: Boolean? = null
+        isPublic: Boolean? = null,
+        updateArchivedAt: Boolean = false
     ): Note? {
         val token = getToken(project) ?: return null
         val workspaceId = getWorkspaceId(project)
@@ -533,12 +546,14 @@ class SnipHiveApiService {
         content?.let { body["content"] = it }
         tags?.let { body["tags"] = it }
         encryptedDek?.let { body["encrypted_dek"] = it }
-        body["archived_at"] = archivedAt
+        if (updateArchivedAt) {
+            body["archived_at"] = archivedAt
+        }
         isPublic?.let { body["is_public"] = it }
 
         val apiClient = SnipHiveApiClient.getInstance()
         val response = apiClient.put<Note>(
-            apiUrl = API_URL,
+            apiUrl = getApiUrl(project),
             endpoint = "$NOTES_ENDPOINT/$noteSlug",
             token = token,
             body = body,
@@ -569,7 +584,8 @@ class SnipHiveApiService {
             tags = note.tags?.map { it.id },
             archivedAt = timestamp,
             encryptedDek = note.encryptedDek,
-            isPublic = note.isPublic
+            isPublic = note.isPublic,
+            updateArchivedAt = true
         )
     }
 
@@ -587,7 +603,8 @@ class SnipHiveApiService {
             tags = note.tags?.map { it.id },
             archivedAt = null,
             encryptedDek = note.encryptedDek,
-            isPublic = note.isPublic
+            isPublic = note.isPublic,
+            updateArchivedAt = true
         )
     }
 
@@ -601,7 +618,7 @@ class SnipHiveApiService {
 
         val apiClient = SnipHiveApiClient.getInstance()
         val response = apiClient.delete(
-            apiUrl = API_URL,
+            apiUrl = getApiUrl(project),
             endpoint = "$NOTES_ENDPOINT/$noteSlug",
             token = token,
             workspaceId = workspaceId
@@ -626,7 +643,7 @@ class SnipHiveApiService {
 
         val apiClient = SnipHiveApiClient.getInstance()
         val response = apiClient.post<Note>(
-            apiUrl = API_URL,
+            apiUrl = getApiUrl(project),
             endpoint = "$NOTES_ENDPOINT/$noteSlug/pin",
             token = token,
             body = null,
@@ -653,7 +670,7 @@ class SnipHiveApiService {
 
         val apiClient = SnipHiveApiClient.getInstance()
         val response = apiClient.post<Note>(
-            apiUrl = API_URL,
+            apiUrl = getApiUrl(project),
             endpoint = "$NOTES_ENDPOINT/$noteSlug/favorite",
             token = token,
             body = null,
@@ -689,7 +706,7 @@ class SnipHiveApiService {
         val apiClient = SnipHiveApiClient.getInstance()
 
         val workspaces = apiClient.getPaginated(
-            apiUrl = API_URL,
+            apiUrl = getApiUrl(project),
             endpoint = WORKSPACES_ENDPOINT,
             token = token,
             itemClass = Workspace::class.java,
@@ -710,7 +727,7 @@ class SnipHiveApiService {
 
         val apiClient = SnipHiveApiClient.getInstance()
         val response = apiClient.get<Workspace>(
-            apiUrl = API_URL,
+            apiUrl = getApiUrl(project),
             endpoint = "$WORKSPACES_ENDPOINT/$workspaceUuid",
             token = token,
             responseType = Workspace::class.java,
@@ -738,7 +755,7 @@ class SnipHiveApiService {
 
         val apiClient = SnipHiveApiClient.getInstance()
         return apiClient.getPaginated(
-            apiUrl = API_URL,
+            apiUrl = getApiUrl(project),
             endpoint = GISTS_ENDPOINT,
             token = token,
             itemClass = GistImport::class.java,
@@ -760,7 +777,7 @@ class SnipHiveApiService {
 
         val apiClient = SnipHiveApiClient.getInstance()
         val response = apiClient.post<GistImport>(
-            apiUrl = API_URL,
+            apiUrl = getApiUrl(project),
             endpoint = "$GISTS_ENDPOINT/import",
             token = token,
             body = body,
@@ -799,7 +816,7 @@ class SnipHiveApiService {
 
         val apiClient = SnipHiveApiClient.getInstance()
         val response = apiClient.post<Tag>(
-            apiUrl = API_URL,
+            apiUrl = getApiUrl(project),
             endpoint = TAGS_ENDPOINT,
             token = token,
             body = body,
@@ -834,7 +851,7 @@ class SnipHiveApiService {
 
         val apiClient = SnipHiveApiClient.getInstance()
         val response = apiClient.put<Tag>(
-            apiUrl = API_URL,
+            apiUrl = getApiUrl(project),
             endpoint = "$TAGS_ENDPOINT/$tagId",
             token = token,
             body = body,
@@ -860,7 +877,7 @@ class SnipHiveApiService {
 
         val apiClient = SnipHiveApiClient.getInstance()
         val response = apiClient.delete(
-            apiUrl = API_URL,
+            apiUrl = getApiUrl(project),
             endpoint = "$TAGS_ENDPOINT/$tagId",
             token = token,
             workspaceId = workspaceId

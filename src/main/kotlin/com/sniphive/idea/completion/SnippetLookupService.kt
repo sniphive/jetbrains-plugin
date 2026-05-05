@@ -425,38 +425,19 @@ class SnippetLookupService {
      */
     private fun filterSnippets(snippets: List<Snippet>, options: FilterOptions): List<Snippet> {
         return snippets.filter { snippet ->
-            // Filter by archived status
-            options.isArchived?.let {
-                if (it) {
-                    snippet.isArchived()
-                } else {
-                    !snippet.isArchived()
-                }
+            val archivedMatches = options.isArchived?.let {
+                if (it) snippet.isArchived() else !snippet.isArchived()
             } ?: true
 
-            // Filter by public status
-            options.isPublic?.let {
-                snippet.isPublic == it
-            } ?: true
-
-            // Filter by pinned status
-            options.isPinned?.let {
-                snippet.isPinned == it
-            } ?: true
-
-            // Filter by favorite status
-            options.isFavorite?.let {
-                snippet.isFavorite == it
-            } ?: true
-
-            // Filter by language
-            options.language?.let {
+            val publicMatches = options.isPublic?.let { snippet.isPublic == it } ?: true
+            val pinnedMatches = options.isPinned?.let { snippet.isPinned == it } ?: true
+            val favoriteMatches = options.isFavorite?.let { snippet.isFavorite == it } ?: true
+            val languageMatches = options.language?.let {
                 snippet.language.equals(it, ignoreCase = true)
             } ?: true
 
-            // Filter by tags
             val tagIdsToFilter = options.tagIds ?: options.tags?.map { it.id }
-            tagIdsToFilter?.let { requiredTagIds ->
+            val tagMatches = tagIdsToFilter?.let { requiredTagIds ->
                 if (requiredTagIds.isNotEmpty()) {
                     snippet.tags.any { tag -> tag.id in requiredTagIds }
                 } else {
@@ -464,10 +445,17 @@ class SnippetLookupService {
                 }
             } ?: true
 
-            // Filter by search (case-insensitive prefix match in title)
-            options.search?.let { search ->
+            val searchMatches = options.search?.let { search ->
                 search.isNotBlank() && snippet.title.contains(search, ignoreCase = true)
             } ?: true
+
+            archivedMatches &&
+                publicMatches &&
+                pinnedMatches &&
+                favoriteMatches &&
+                languageMatches &&
+                tagMatches &&
+                searchMatches
         }
     }
 

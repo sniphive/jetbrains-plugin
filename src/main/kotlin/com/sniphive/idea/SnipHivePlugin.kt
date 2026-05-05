@@ -3,6 +3,7 @@ package com.sniphive.idea
 import com.intellij.openapi.components.service
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.ProjectManager
+import com.sniphive.idea.services.SecureCredentialStorage
 
 /**
  * Main plugin entry point for SnipHive JetBrains IDE Extension.
@@ -34,7 +35,7 @@ class SnipHivePlugin private constructor() {
          * Get the plugin ID
          */
         @JvmStatic
-        val pluginId: String = "com.sniphive.intellij"
+        val pluginId: String = "net.sniphive.plugin"
 
         /**
          * Minimum supported IDE build number
@@ -46,7 +47,7 @@ class SnipHivePlugin private constructor() {
          * Maximum supported IDE build number
          */
         @JvmStatic
-        val maxIdeaVersion: String = "241.*"
+        val maxIdeaVersion: String = "250.*"
     }
 
     /**
@@ -71,8 +72,13 @@ class SnipHivePlugin private constructor() {
     fun dispose() {
         LOG.info("Disposing SnipHive plugin")
 
-        // Services are automatically disposed by IntelliJ Platform
-        // No manual cleanup needed for application services
+        // Shutdown credential retry scheduler to prevent thread leaks
+        try {
+            val secureStorage = SecureCredentialStorage.getInstance()
+            secureStorage.shutdownScheduler()
+        } catch (e: Exception) {
+            LOG.warn("Error shutting down credential scheduler: ${e.message}")
+        }
 
         LOG.info("SnipHive plugin disposed")
     }

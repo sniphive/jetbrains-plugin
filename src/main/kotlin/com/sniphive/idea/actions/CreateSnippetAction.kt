@@ -11,6 +11,8 @@ import com.intellij.openapi.fileTypes.FileType
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.Messages
 import com.sniphive.idea.config.SnipHiveSettings
+import com.sniphive.idea.crypto.EnvelopeEncryption
+import com.sniphive.idea.crypto.RSACrypto
 import com.sniphive.idea.services.SnipHiveApiService
 import com.sniphive.idea.services.SnipHiveAuthService
 import com.sniphive.idea.ui.CreateSnippetDialog
@@ -64,13 +66,12 @@ class CreateSnippetAction : AnAction() {
         val isAuthenticated = project?.let { authService.isCurrentAuthenticated(it) } ?: false
 
         // Debug: Log visibility conditions
-        LOG.debug("CreateSnippetAction update: project=${project?.name}, editor=${editor != null}, isAuthenticated=$isAuthenticated, apiUrl=${settings?.getApiUrl()?.takeIf { it.isNotEmpty() } ?: "empty"}")
+        LOG.debug("CreateSnippetAction update: project=${project?.name}, editor=${editor != null}, isAuthenticated=$isAuthenticated, apiUrl=${settings.getApiUrl().takeIf { it.isNotEmpty() } ?: "empty"}")
 
         // Show action when authenticated (even without selection)
         val isVisible = project != null &&
                 editor != null &&
                 isAuthenticated &&
-                settings != null &&
                 settings.getApiUrl().isNotEmpty()
 
         // Enable only when there's a selection
@@ -175,18 +176,61 @@ class CreateSnippetAction : AnAction() {
 
     /**
      * Get common programming languages for the dropdown.
+     * Values must match the API's accepted language codes.
      */
     private fun getCommonLanguages(): List<String> {
         return listOf(
-            "Kotlin", "Java", "JavaScript", "TypeScript", "Python", "PHP", "Ruby",
-            "Go", "Rust", "Swift", "C", "C++", "C#", "SQL", "HTML", "CSS", "SCSS",
-            "Bash", "Shell", "JSON", "YAML", "XML", "Markdown", "Dart", "Scala",
-            "Groovy", "Perl", "Lua", "R", "MATLAB", "Objective-C"
+            "kotlin", "java", "javascript", "typescript", "python", "php", "ruby",
+            "go", "rust", "swift", "c", "cpp", "csharp", "sql", "html", "css",
+            "bash", "shell", "json", "yaml", "xml", "markdown", "plaintext",
+            "text", "dart", "scala", "groovy", "perl", "lua", "r"
         )
     }
 
     /**
+     * Normalize IDE file type name to API-compatible language code.
+     * The API accepts only specific lowercase values (see StoreSnippetRequest validation).
+     */
+    private fun normalizeLanguage(fileTypeName: String): String {
+        return when (fileTypeName.trim()) {
+            "JavaScript" -> "javascript"
+            "TypeScript" -> "typescript"
+            "Python" -> "python"
+            "PHP" -> "php"
+            "Java" -> "java"
+            "Go" -> "go"
+            "Ruby" -> "ruby"
+            "Rust" -> "rust"
+            "C++" -> "cpp"
+            "C" -> "c"
+            "C#" -> "csharp"
+            "SQL" -> "sql"
+            "HTML" -> "html"
+            "CSS" -> "css"
+            "SCSS" -> "css"
+            "Bash" -> "bash"
+            "Shell Script" -> "shell"
+            "JSON" -> "json"
+            "YAML" -> "yaml"
+            "XML" -> "xml"
+            "Markdown" -> "markdown"
+            "Plain Text" -> "plaintext"
+            "Kotlin" -> "kotlin"
+            "Swift" -> "swift"
+            "Dart" -> "dart"
+            "Scala" -> "scala"
+            "Groovy" -> "groovy"
+            "Perl" -> "perl"
+            "Lua" -> "lua"
+            "R" -> "r"
+            "Objective-C" -> "objectivec"
+            else -> fileTypeName.lowercase().replace("+", "p").replace("#", "sharp").replace(" ", "")
+        }
+    }
+
+    /**
      * Create snippet via API.
+     * If the user has E2EE enabled, content is encrypted before sending.
      */
     private fun createSnippetViaApi(project: Project, result: CreateSnippetDialog.CreateResult) {
         ApplicationManager.getApplication().executeOnPooledThread {
@@ -194,12 +238,28 @@ class CreateSnippetAction : AnAction() {
                 val apiService = SnipHiveApiService.getInstance()
                 val tagIds = result.tags.map { it.id }
 
+                // Check E2EE status and encrypt content if required
+                val securityStatus = apiService.getSecurityStatus(project)
+                val (snippetContent, encryptedDek) = if (
+                    securityStatus?.setupComplete == true &&
+                    securityStatus.e2eeProfile?.publicKeyJWK != null
+                ) {
+                    LOG.debug("E2EE is active - encrypting snippet content")
+                    val publicKey = RSACrypto.importPublicKeyFromJWK(securityStatus.e2eeProfile.publicKeyJWK)
+                    val encryptedResult = EnvelopeEncryption.encryptContent(result.content, publicKey)
+                    Pair(encryptedResult.content, encryptedResult.encryptedDEK)
+                } else {
+                    LOG.debug("E2EE is not active - sending plaintext content")
+                    Pair(result.content, null)
+                }
+
                 val snippet = apiService.createSnippet(
                     project = project,
                     title = result.title,
-                    content = result.content,
-                    language = result.language,
+                    content = snippetContent,
+                    language = normalizeLanguage(result.language),
                     tags = tagIds,
+                    encryptedDek = encryptedDek,
                     isPublic = result.isPublic
                 )
 

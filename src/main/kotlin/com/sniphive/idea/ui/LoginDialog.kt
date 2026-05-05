@@ -1,6 +1,7 @@
 package com.sniphive.idea.ui
 
 import com.intellij.openapi.diagnostic.Logger
+import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.ui.components.JBLabel
@@ -8,7 +9,6 @@ import com.intellij.ui.components.JBPasswordField
 import com.intellij.ui.components.JBTextField
 import com.intellij.ui.components.panels.VerticalLayout
 import com.intellij.util.ui.JBUI
-import com.intellij.util.ui.UIUtil
 import com.intellij.ide.BrowserUtil
 import com.sniphive.idea.config.SnipHiveSettings
 import com.sniphive.idea.services.SnipHiveAuthService
@@ -217,12 +217,12 @@ class LoginDialog(private val project: Project) : DialogWrapper(true) {
 
         LOG.debug("Performing login for user: ${email.lowercase()}")
 
-        // Disable buttons and show loading state
+        // Disable buttons and show loading state (EDT)
         isOKActionEnabled = false
         setOKButtonText("Logging in...")
 
         // Perform login on background thread
-        UIUtil.invokeLaterIfNeeded {
+        ApplicationManager.getApplication().executeOnPooledThread {
             try {
                 val settings = SnipHiveSettings.getInstance()
                 val apiUrl = settings.getApiUrl()
@@ -238,12 +238,30 @@ class LoginDialog(private val project: Project) : DialogWrapper(true) {
 
                 loginResult = result
 
-                if (result.success) {
-                    LOG.info("Login successful for user: ${email.lowercase()}")
-                    close(OK_EXIT_CODE)
-                } else {
-                    LOG.warn("Login failed for user ${email.lowercase()}: ${result.message}")
-                    showError(result.message)
+                // Update UI on EDT
+                ApplicationManager.getApplication().invokeLater {
+                    if (result.success) {
+                        LOG.info("Login successful for user: ${email.lowercase()}")
+                        close(OK_EXIT_CODE)
+                    } else {
+                        LOG.warn("Login failed for user ${email.lowercase()}: ${result.message}")
+                        showError(result.message)
+
+                        // Re-enable buttons
+                        isOKActionEnabled = true
+                        setOKButtonText("Login")
+
+                        // Focus password field for retry
+                        passwordField.requestFocusInWindow()
+                        passwordField.selectAll()
+                    }
+                }
+            } catch (e: Exception) {
+                LOG.error("Unexpected error during login for user ${email.lowercase()}", e)
+
+                // Update UI on EDT
+                ApplicationManager.getApplication().invokeLater {
+                    showError("An unexpected error occurred. Please try again.")
 
                     // Re-enable buttons
                     isOKActionEnabled = true
@@ -251,18 +269,7 @@ class LoginDialog(private val project: Project) : DialogWrapper(true) {
 
                     // Focus password field for retry
                     passwordField.requestFocusInWindow()
-                    passwordField.selectAll()
                 }
-            } catch (e: Exception) {
-                LOG.error("Unexpected error during login for user ${email.lowercase()}", e)
-                showError("An unexpected error occurred. Please try again.")
-
-                // Re-enable buttons
-                isOKActionEnabled = true
-                setOKButtonText("Login")
-
-                // Focus password field for retry
-                passwordField.requestFocusInWindow()
             }
         }
     }

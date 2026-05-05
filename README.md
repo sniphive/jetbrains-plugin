@@ -37,7 +37,7 @@ SnipHive uses industry-standard end-to-end encryption:
 
 ### From Plugin ZIP
 
-1. Download the plugin ZIP from [GitHub Releases](https://github.com/yourorg/sniphive/releases)
+1. Download the plugin ZIP from [GitHub Releases](https://github.com/sniphive/sniphive/releases)
 2. Go to **Settings/Preferences** → **Plugins**
 3. Click the gear icon → **Install Plugin from Disk...**
 4. Select the downloaded ZIP file
@@ -127,7 +127,7 @@ If you don't have an account, visit [https://sniphive.com](https://sniphive.com)
 - AppCode
 - Android Studio
 
-**Minimum Version:** 2023.2
+**Minimum Version:** 2024.1
 
 ## Configuration
 
@@ -145,7 +145,7 @@ Access plugin settings via **Settings/Preferences** → **Tools** → **SnipHive
 
 - Verify your SnipHive account credentials
 - Check your internet connection
-- Ensure the API URL is correct (default: `https://api.sniphive.com`)
+- Ensure the API URL is correct (default: `https://api.sniphive.net`)
 
 ### Encrypted Snippets Not Decrypting
 
@@ -173,7 +173,7 @@ Access plugin settings via **Settings/Preferences** → **Tools** → **SnipHive
 
 ```bash
 # Clone repository
-git clone https://github.com/yourorg/sniphive.git
+git clone https://github.com/sniphive/sniphive.git
 cd sniphive/extensions/jetbrains-sniphive
 
 # Build plugin
@@ -231,7 +231,7 @@ When copying public URLs for encrypted snippets:
 
 - **Website:** https://sniphive.com
 - **Documentation:** https://docs.sniphive.com
-- **Issues:** https://github.com/yourorg/sniphive/issues
+- **Issues:** https://github.com/sniphive/sniphive/issues
 - **Email:** support@sniphive.com
 
 ## License

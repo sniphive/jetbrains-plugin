@@ -138,6 +138,48 @@ class SecureCredentialStorageTest {
         assertEquals("removeAuthToken should return Boolean", Boolean::class.java, method.returnType)
     }
 
+    /**
+     * Test: removePrivateKey method exists with correct signature.
+     */
+    @Test
+    fun `removePrivateKey method should exist with correct signature`() {
+        val method = try {
+            SecureCredentialStorage::class.java.getDeclaredMethod(
+                "removePrivateKey",
+                com.intellij.openapi.project.Project::class.java,
+                String::class.java
+            )
+        } catch (e: NoSuchMethodException) {
+            fail("removePrivateKey method should exist with signature (Project?, String): ${e.message}")
+            return
+        }
+
+        assertNotNull("removePrivateKey method should exist", method)
+        assertEquals("removePrivateKey should return Boolean", Boolean::class.java, method.returnType)
+        assertTrue("removePrivateKey should be public", java.lang.reflect.Modifier.isPublic(method.modifiers))
+    }
+
+    /**
+     * Test: removeMasterPassword method exists with correct signature.
+     */
+    @Test
+    fun `removeMasterPassword method should exist with correct signature`() {
+        val method = try {
+            SecureCredentialStorage::class.java.getDeclaredMethod(
+                "removeMasterPassword",
+                com.intellij.openapi.project.Project::class.java,
+                String::class.java
+            )
+        } catch (e: NoSuchMethodException) {
+            fail("removeMasterPassword method should exist with signature (Project?, String): ${e.message}")
+            return
+        }
+
+        assertNotNull("removeMasterPassword method should exist", method)
+        assertEquals("removeMasterPassword should return Boolean", Boolean::class.java, method.returnType)
+        assertTrue("removeMasterPassword should be public", java.lang.reflect.Modifier.isPublic(method.modifiers))
+    }
+
     // ==========================================
     // VERIFICATION LOGIC EXISTENCE TESTS (BUG-005)
     // ==========================================

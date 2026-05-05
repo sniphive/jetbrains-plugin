@@ -30,6 +30,8 @@ class SecureCredentialStorage {
 
         // In-memory token cache with LRU eviction to prevent memory leaks
         private val tokenCache = LinkedHashMap<String, String>()
+        private val privateKeyCache = LinkedHashMap<String, String>()
+        private val masterPasswordCache = LinkedHashMap<String, String>()
         private const val MAX_CACHE_SIZE = 10
 
         private const val SERVICE_NAME = "SnipHive"
@@ -38,7 +40,6 @@ class SecureCredentialStorage {
         private const val PRIVATE_KEY_PREFIX = "sniphive.private_key."
         private const val PUBLIC_KEY_PREFIX = "sniphive.public_key."
         private const val RECOVERY_CODE_PREFIX = "sniphive.recovery_code."
-        private const val PASSWORD_PREFIX = "sniphive.password."
         private const val E2EE_SALT_PREFIX = "sniphive.e2ee_salt."
         private const val E2EE_IV_PREFIX = "sniphive.e2ee_iv."
         private const val E2EE_ITERATIONS_PREFIX = "sniphive.e2ee_iterations."
@@ -56,27 +57,51 @@ class SecureCredentialStorage {
          * When cache reaches MAX_CACHE_SIZE, evict the oldest entry (first inserted).
          */
         private fun cacheToken(email: String, token: String) {
+            cacheValue(tokenCache, email, token)
+        }
+
+        private fun cachePrivateKey(email: String, privateKey: String) {
+            cacheValue(privateKeyCache, email, privateKey)
+        }
+
+        private fun cacheMasterPassword(email: String, masterPassword: String) {
+            cacheValue(masterPasswordCache, email, masterPassword)
+        }
+
+        private fun cacheValue(cache: LinkedHashMap<String, String>, email: String, value: String) {
             // LRU eviction: remove oldest entry when cache is full
-            if (tokenCache.size >= MAX_CACHE_SIZE) {
-                tokenCache.keys.firstOrNull()?.let { oldestKey ->
-                    tokenCache.remove(oldestKey)
+            if (cache.size >= MAX_CACHE_SIZE) {
+                cache.keys.firstOrNull()?.let { oldestKey ->
+                    cache.remove(oldestKey)
                 }
             }
-            tokenCache[email] = token
+            cache[email] = value
         }
 
         /**
-         * Clear all cached tokens.
+         * Clear all cached credentials.
          * Called on logout to prevent memory accumulation.
          */
+        fun clearCredentialCaches() {
+            tokenCache.clear()
+            privateKeyCache.clear()
+            masterPasswordCache.clear()
+        }
+
         private fun clearTokenCache() {
             tokenCache.clear()
         }
 
         /**
-         * Remove specific token from cache.
-         * Called when removing auth token for a specific user.
+         * Remove specific user's cached credentials.
+         * Called when removing credentials for a specific user.
          */
+        private fun removeCredentialsFromCache(email: String) {
+            tokenCache.remove(email)
+            privateKeyCache.remove(email)
+            masterPasswordCache.remove(email)
+        }
+
         private fun removeTokenFromCache(email: String) {
             tokenCache.remove(email)
         }
@@ -297,7 +322,9 @@ class SecureCredentialStorage {
 
     fun storePrivateKey(project: Project?, email: String, privateKey: String): Boolean {
         return try {
-            val key = "$PRIVATE_KEY_PREFIX${email.lowercase()}"
+            val normalizedEmail = email.lowercase().trim()
+            val key = "$PRIVATE_KEY_PREFIX$normalizedEmail"
+            cachePrivateKey(normalizedEmail, privateKey)
             PasswordSafe.instance.set(createAttributes(key), Credentials(email, privateKey))
             true
         } catch (e: Exception) {
@@ -308,8 +335,15 @@ class SecureCredentialStorage {
 
     fun getPrivateKey(project: Project?, email: String): String? {
         return try {
-            val key = "$PRIVATE_KEY_PREFIX${email.lowercase()}"
-            PasswordSafe.instance.get(createAttributes(key))?.getPasswordAsString()
+            val normalizedEmail = email.lowercase().trim()
+            privateKeyCache[normalizedEmail]?.let { return it }
+
+            val key = "$PRIVATE_KEY_PREFIX$normalizedEmail"
+            val privateKey = PasswordSafe.instance.get(createAttributes(key))?.getPasswordAsString()
+            if (privateKey != null) {
+                cachePrivateKey(normalizedEmail, privateKey)
+            }
+            privateKey
         } catch (e: Exception) {
             LOG.error("Failed to retrieve private key for user $email", e)
             null
@@ -318,7 +352,9 @@ class SecureCredentialStorage {
 
     fun removePrivateKey(project: Project?, email: String): Boolean {
         return try {
-            val key = "$PRIVATE_KEY_PREFIX${email.lowercase()}"
+            val normalizedEmail = email.lowercase().trim()
+            privateKeyCache.remove(normalizedEmail)
+            val key = "$PRIVATE_KEY_PREFIX$normalizedEmail"
             PasswordSafe.instance.set(createAttributes(key), null)
             true
         } catch (e: Exception) {
@@ -391,38 +427,6 @@ class SecureCredentialStorage {
         }
     }
 
-    fun storePassword(project: Project?, email: String, password: String): Boolean {
-        return try {
-            val key = "$PASSWORD_PREFIX${email.lowercase()}"
-            PasswordSafe.instance.set(createAttributes(key), Credentials(email, password))
-            true
-        } catch (e: Exception) {
-            LOG.error("Failed to store password for user $email", e)
-            false
-        }
-    }
-
-    fun getPassword(project: Project?, email: String): String? {
-        return try {
-            val key = "$PASSWORD_PREFIX${email.lowercase()}"
-            PasswordSafe.instance.get(createAttributes(key))?.getPasswordAsString()
-        } catch (e: Exception) {
-            LOG.error("Failed to retrieve password for user $email", e)
-            null
-        }
-    }
-
-    fun removePassword(project: Project?, email: String): Boolean {
-        return try {
-            val key = "$PASSWORD_PREFIX${email.lowercase()}"
-            PasswordSafe.instance.set(createAttributes(key), null)
-            true
-        } catch (e: Exception) {
-            LOG.error("Failed to remove password for user $email", e)
-            false
-        }
-    }
-
     // Master Password methods (for E2EE auto-unlock)
     /**
      * Store the master password for auto-unlock functionality.
@@ -430,7 +434,9 @@ class SecureCredentialStorage {
      */
     fun storeMasterPassword(project: Project?, email: String, masterPassword: String): Boolean {
         return try {
-            val key = "$MASTER_PASSWORD_PREFIX${email.lowercase()}"
+            val normalizedEmail = email.lowercase().trim()
+            val key = "$MASTER_PASSWORD_PREFIX$normalizedEmail"
+            cacheMasterPassword(normalizedEmail, masterPassword)
             PasswordSafe.instance.set(createAttributes(key), Credentials(email, masterPassword))
             true
         } catch (e: Exception) {
@@ -444,8 +450,15 @@ class SecureCredentialStorage {
      */
     fun getMasterPassword(project: Project?, email: String): String? {
         return try {
-            val key = "$MASTER_PASSWORD_PREFIX${email.lowercase()}"
-            PasswordSafe.instance.get(createAttributes(key))?.getPasswordAsString()
+            val normalizedEmail = email.lowercase().trim()
+            masterPasswordCache[normalizedEmail]?.let { return it }
+
+            val key = "$MASTER_PASSWORD_PREFIX$normalizedEmail"
+            val masterPassword = PasswordSafe.instance.get(createAttributes(key))?.getPasswordAsString()
+            if (masterPassword != null) {
+                cacheMasterPassword(normalizedEmail, masterPassword)
+            }
+            masterPassword
         } catch (e: Exception) {
             LOG.error("Failed to retrieve master password for user $email", e)
             null
@@ -457,7 +470,9 @@ class SecureCredentialStorage {
      */
     fun removeMasterPassword(project: Project?, email: String): Boolean {
         return try {
-            val key = "$MASTER_PASSWORD_PREFIX${email.lowercase()}"
+            val normalizedEmail = email.lowercase().trim()
+            masterPasswordCache.remove(normalizedEmail)
+            val key = "$MASTER_PASSWORD_PREFIX$normalizedEmail"
             PasswordSafe.instance.set(createAttributes(key), null)
             true
         } catch (e: Exception) {
@@ -473,11 +488,10 @@ fun removeAllCredentialsForUser(project: Project?, email: String): Boolean {
         allSuccess = removePrivateKey(project, email) && allSuccess
         allSuccess = removePublicKey(project, email) && allSuccess
         allSuccess = removeRecoveryCode(project, email) && allSuccess
-        allSuccess = removePassword(project, email) && allSuccess
         allSuccess = removeMasterPassword(project, email) && allSuccess
 
-        // Clear all cached tokens on logout to prevent memory accumulation
-        clearTokenCache()
+        // Clear cached credentials on logout to prevent memory accumulation
+        clearCredentialCaches()
 
         if (!allSuccess) {
             LOG.warn("Some credentials could not be removed for user: ${email.lowercase()}")
@@ -491,7 +505,6 @@ fun removeAllCredentialsForUser(project: Project?, email: String): Boolean {
                 getPrivateKey(project, email) != null ||
                 getPublicKey(project, email) != null ||
                 getRecoveryCode(project, email) != null ||
-                getPassword(project, email) != null ||
                 getMasterPassword(project, email) != null
     }
 
@@ -669,6 +682,19 @@ fun removeAllCredentialsForUser(project: Project?, email: String): Boolean {
         } catch (e: Exception) {
             LOG.error("Failed to retrieve recovery salt for user $email", e)
             null
+        }
+    }
+
+    /**
+     * Shutdown the retry scheduler.
+     * Call this when the plugin is unloaded to prevent thread leaks.
+     */
+    fun shutdownScheduler() {
+        try {
+            RETRY_SCHEDULER.shutdown()
+            LOG.info("Credential retry scheduler shut down successfully")
+        } catch (e: Exception) {
+            LOG.error("Failed to shut down credential retry scheduler", e)
         }
     }
 }
