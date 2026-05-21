@@ -1,0 +1,25 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 /Users/mkilic/www/klc/sniphive/jetbrains-sniphive/.claude/hooks/block_search_tools.py"
+          }
+        ]
+      }
+    ],
+    "SubagentStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 /Users/mkilic/www/klc/sniphive/jetbrains-sniphive/.claude/hooks/subagent_graphify_context.py"
+          }
+        ]
+      }
+    ]
+  }
+}
