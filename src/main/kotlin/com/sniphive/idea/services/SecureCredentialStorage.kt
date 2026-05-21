@@ -2,6 +2,7 @@ package com.sniphive.idea.services
 
 import com.intellij.credentialStore.CredentialAttributes
 import com.intellij.credentialStore.Credentials
+import com.intellij.credentialStore.generateServiceName
 import com.intellij.ide.passwordSafe.PasswordSafe
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.components.service
@@ -108,7 +109,7 @@ class SecureCredentialStorage {
     }
 
     private fun createAttributes(key: String): CredentialAttributes {
-        return CredentialAttributes(SERVICE_NAME, key)
+        return CredentialAttributes(generateServiceName(SERVICE_NAME, key))
     }
 
     fun storeAuthToken(project: Project?, email: String, token: String): Boolean {

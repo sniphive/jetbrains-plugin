@@ -146,7 +146,7 @@ class NoteEditor(
                 markDirty()
                 debouncedSaver.onContentChanged()
             }
-        })
+        }, this)
     }
 
     private fun onTitleChanged() {
