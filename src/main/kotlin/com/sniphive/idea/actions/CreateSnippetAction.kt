@@ -267,13 +267,6 @@ class CreateSnippetAction : AnAction() {
                 if (snippet != null) {
                     LOG.info("Snippet created successfully: ${snippet.id}")
                     SnippetLookupService.getInstance(project).refreshSnippets()
-                    ApplicationManager.getApplication().invokeLater {
-                        Messages.showInfoMessage(
-                            project,
-                            "Snippet '${result.title}' created successfully!",
-                            "Snippet Created"
-                        )
-                    }
                 } else {
                     LOG.warn("Failed to create snippet: ${result.title}")
                     ApplicationManager.getApplication().invokeLater {
