@@ -28,26 +28,16 @@
     </description>
 
     <!-- Plugin version and compatibility -->
-    <version>1.0.0</version>
+    <version>1.1.2</version>
     <change-notes>
         <![CDATA[
-        <h3>0.2.0</h3>
+        <h3>1.1.2</h3>
         <ul>
-            <li>Notes support - create, edit, delete, pin, favorite</li>
-            <li>Favorites view - unified view of favorite snippets and notes</li>
-            <li>Archive view - restore or permanently delete archived items</li>
-            <li>Tags management - create, edit, delete tags with colors</li>
-            <li>Workspace selector - switch between workspaces</li>
-            <li>GitHub Gist import - import gists as snippets</li>
-            <li>Enhanced search with filters</li>
-        </ul>
-        <h3>0.1.0</h3>
-        <ul>
-            <li>Initial release</li>
-            <li>Tool window for snippet browsing</li>
-            <li>Create snippet from selection</li>
-            <li>Insert snippet via code completion</li>
-            <li>E2EE support with secure credential storage</li>
+            <li>Added a Tags management tab for creating, editing, deleting, and refreshing tags from the tool window.</li>
+            <li>Refresh snippet and note lists automatically after creating new items.</li>
+            <li>Improved tag selection layout in create snippet and note dialogs so tag checkboxes wrap cleanly.</li>
+            <li>Removed the extra success alert after snippet creation to keep the workflow faster.</li>
+            <li>Updated secure credential storage to avoid deprecated JetBrains Password Safe APIs.</li>
         </ul>
         ]]>
     </change-notes>
