@@ -8,6 +8,7 @@ import com.intellij.openapi.components.Service
 import com.intellij.openapi.components.service
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
+import java.lang.reflect.Method
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledExecutorService
@@ -109,7 +110,33 @@ class SecureCredentialStorage {
     }
 
     private fun createAttributes(key: String): CredentialAttributes {
-        return CredentialAttributes(generateServiceName(SERVICE_NAME, key))
+        val serviceName = generateServiceName(SERVICE_NAME, key)
+        return createAttributesWithFactory(serviceName)
+            ?: createAttributesReflectively(serviceName)
+    }
+
+    private fun createAttributesWithFactory(serviceName: String): CredentialAttributes? {
+        val factoryClass = runCatching {
+            Class.forName("com.intellij.credentialStore.CredentialAttributesKt")
+        }.getOrNull() ?: return null
+
+        val factoryMethod = factoryClass.methods.firstOrNull { method ->
+            method.name in setOf("createCredentialAttributes", "credentialAttributes", "CredentialAttributes") &&
+                method.parameterTypes.contentEquals(arrayOf(String::class.java))
+        } ?: return null
+
+        return invokeAttributesFactory(factoryMethod, serviceName)
+    }
+
+    private fun invokeAttributesFactory(factoryMethod: Method, serviceName: String): CredentialAttributes? {
+        return runCatching {
+            factoryMethod.invoke(null, serviceName) as? CredentialAttributes
+        }.getOrNull()
+    }
+
+    private fun createAttributesReflectively(serviceName: String): CredentialAttributes {
+        val constructor = CredentialAttributes::class.java.getConstructor(String::class.java)
+        return constructor.newInstance(serviceName)
     }
 
     fun storeAuthToken(project: Project?, email: String, token: String): Boolean {
