@@ -15,6 +15,7 @@ import com.sniphive.idea.crypto.EnvelopeEncryption
 import com.sniphive.idea.crypto.RSACrypto
 import com.sniphive.idea.services.SnipHiveApiService
 import com.sniphive.idea.services.SnipHiveAuthService
+import com.sniphive.idea.services.SnippetLookupService
 import com.sniphive.idea.ui.CreateSnippetDialog
 
 /**
@@ -265,6 +266,7 @@ class CreateSnippetAction : AnAction() {
 
                 if (snippet != null) {
                     LOG.info("Snippet created successfully: ${snippet.id}")
+                    SnippetLookupService.getInstance(project).refreshSnippets()
                     ApplicationManager.getApplication().invokeLater {
                         Messages.showInfoMessage(
                             project,

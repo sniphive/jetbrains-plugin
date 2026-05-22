@@ -4,6 +4,7 @@ import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.DialogWrapper
+import com.intellij.openapi.ui.Messages
 import com.intellij.ui.components.JBCheckBox
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBScrollPane
@@ -56,9 +57,6 @@ class CreateNoteDialog(private val project: Project) : DialogWrapper(true) {
     private val tagCheckBoxes = mutableMapOf<String, JBCheckBox>()
     private var availableTags: List<Tag> = emptyList()
     private var createdNote: Note? = null
-
-    // Timer for delayed dialog close - must be stored to prevent GC
-    private var closeTimer: Timer? = null
 
     init {
         LOG.debug("Initializing CreateNoteDialog for project: ${project.name}")
@@ -220,17 +218,11 @@ class CreateNoteDialog(private val project: Project) : DialogWrapper(true) {
             return
         }
 
-        // Disable UI and show loading
-        titleField.isEnabled = false
-        contentArea.isEnabled = false
-        setOKActionEnabled(false)
-        statusLabel.text = "Creating note..."
-        statusLabel.foreground = java.awt.Color(0, 100, 0)
-        statusLabel.isVisible = true
-
         val title = titleField.text.trim()
         val plainContent = contentArea.text
         val tagIds = getSelectedTagIds()
+
+        close(OK_EXIT_CODE)
 
         // Create note via API
         ApplicationManager.getApplication().executeOnPooledThread {
@@ -260,11 +252,11 @@ class CreateNoteDialog(private val project: Project) : DialogWrapper(true) {
                         Pair(encrypted.encryptedContent, encrypted.encryptedDek)
                     } else {
                         ApplicationManager.getApplication().invokeLater {
-                            showError("E2EE encryption failed. Please check your encryption setup.")
-                            titleField.isEnabled = true
-                            contentArea.isEnabled = true
-                            setOKActionEnabled(true)
-                            statusLabel.isVisible = false
+                            Messages.showErrorDialog(
+                                project,
+                                "E2EE encryption failed. Please check your encryption setup.",
+                                "Create Note"
+                            )
                         }
                         return@executeOnPooledThread
                     }
@@ -279,44 +271,22 @@ class CreateNoteDialog(private val project: Project) : DialogWrapper(true) {
                         if (note != null) {
                             createdNote = note
 
-                            // Add to cache
-                            NoteLookupService.getInstance(project).addNote(note)
-
-                            statusLabel.text = "Note created successfully!"
-                            statusLabel.foreground = java.awt.Color(0, 150, 0)
-
-                            // Close dialog after short delay - store timer to prevent GC
-                            closeTimer?.stop()
-                            closeTimer = Timer(500) {
-                                close(OK_EXIT_CODE)
-                            }.apply {
-                                isRepeats = false
-                                start()
-                            }
+                            NoteLookupService.getInstance(project).refreshNotes()
                         } else {
-                            showError("Failed to create note. Please try again.")
-                            titleField.isEnabled = true
-                            contentArea.isEnabled = true
-                            setOKActionEnabled(true)
-                            statusLabel.isVisible = false
+                            Messages.showErrorDialog(project, "Failed to create note. Please try again.", "Create Note")
+                            NoteLookupService.getInstance(project).refreshNotes()
                         }
                     } catch (e: Exception) {
                         LOG.error("Error processing created note response", e)
-                        showError("Error processing note: ${e.message}")
-                        titleField.isEnabled = true
-                        contentArea.isEnabled = true
-                        setOKActionEnabled(true)
-                        statusLabel.isVisible = false
+                        Messages.showErrorDialog(project, "Error processing note: ${e.message}", "Create Note")
+                        NoteLookupService.getInstance(project).refreshNotes()
                     }
                 }
             } catch (e: Exception) {
                 LOG.error("Failed to create note", e)
                 ApplicationManager.getApplication().invokeLater {
-                    showError("Error: ${e.message}")
-                    titleField.isEnabled = true
-                    contentArea.isEnabled = true
-                    setOKActionEnabled(true)
-                    statusLabel.isVisible = false
+                    Messages.showErrorDialog(project, "Error: ${e.message}", "Create Note")
+                    NoteLookupService.getInstance(project).refreshNotes()
                 }
             }
         }
