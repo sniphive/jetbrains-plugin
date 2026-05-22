@@ -215,7 +215,7 @@ class SnipHiveToolWindowFactory : ToolWindowFactory {
         val headerPanel = createHeaderPanel(project, settings, toolWindow, mainPanel, onWorkspaceSelectorCreated)
         panel.add(headerPanel, BorderLayout.NORTH)
 
-        // Tabbed pane for Snippets, Notes, Favorites, Archive
+        // Tabbed pane for Snippets, Notes, Tags, Favorites, Archive
         val tabbedPane = JTabbedPane()
 
         // Snippets Tab
@@ -225,6 +225,10 @@ class SnipHiveToolWindowFactory : ToolWindowFactory {
         // Notes Tab
         val notesPanel = createNotesPanel(project)
         tabbedPane.addTab("Notes", notesPanel)
+
+        // Tags Tab
+        val tagsPanel = createTagsPanel(project)
+        tabbedPane.addTab("Tags", tagsPanel)
 
         // Favorites Tab
         val favoritesPanel = createFavoritesPanel(project, toolWindow.disposable)
@@ -239,6 +243,17 @@ class SnipHiveToolWindowFactory : ToolWindowFactory {
         tabbedPane.addTab("Pinned", pinnedPanel)
 
         panel.add(tabbedPane, BorderLayout.CENTER)
+
+        return panel
+    }
+
+    private fun createTagsPanel(project: Project): JComponent {
+        val panel = JPanel(BorderLayout(0, JBUI.scale(5)))
+        val tagsPanel = TagsPanel(project)
+        val actionsPanel = createTagActionsPanel(tagsPanel)
+
+        panel.add(tagsPanel, BorderLayout.CENTER)
+        panel.add(actionsPanel, BorderLayout.SOUTH)
 
         return panel
     }
@@ -358,6 +373,28 @@ class SnipHiveToolWindowFactory : ToolWindowFactory {
                     LOG.error("Failed to load tags for note dialog", e)
                 }
             }
+        }
+
+        panel.add(refreshButton)
+        panel.add(createButton)
+
+        return panel
+    }
+
+    private fun createTagActionsPanel(tagsPanel: TagsPanel): JPanel {
+        val panel = JPanel(FlowLayout(FlowLayout.LEFT, JBUI.scale(5), 0))
+        panel.border = JBUI.Borders.emptyTop(10)
+
+        val refreshButton = JButton("Refresh")
+        refreshButton.toolTipText = "Refresh tags from server"
+        refreshButton.addActionListener {
+            tagsPanel.refresh()
+        }
+
+        val createButton = JButton("Create Tag")
+        createButton.toolTipText = "Create a new tag"
+        createButton.addActionListener {
+            tagsPanel.createTag()
         }
 
         panel.add(refreshButton)

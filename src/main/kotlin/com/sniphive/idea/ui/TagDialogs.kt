@@ -51,7 +51,6 @@ class CreateTagDialog(private val project: Project) : DialogWrapper(true) {
     private val colorButtonGroup = ButtonGroup()
 
     private var selectedColor: String = PREDEFINED_COLORS.first().first
-    private var createdTag: Tag? = null
 
     init {
         title = "Create Tag"
@@ -140,31 +139,12 @@ class CreateTagDialog(private val project: Project) : DialogWrapper(true) {
             return
         }
 
-        // Create tag via API
-        ApplicationManager.getApplication().executeOnPooledThread {
-            try {
-                val apiService = SnipHiveApiService.getInstance()
-                val newTag = apiService.createTag(project, name, selectedColor)
-
-                ApplicationManager.getApplication().invokeLater {
-                    if (newTag != null) {
-                        createdTag = newTag
-                        close(OK_EXIT_CODE)
-                    } else {
-                        Messages.showErrorDialog(project, "Failed to create tag. Please try again.", "Error")
-                        nameField.isEnabled = true
-                    }
-                }
-            } catch (e: Exception) {
-                LOG.error("Failed to create tag", e)
-                ApplicationManager.getApplication().invokeLater {
-                    Messages.showErrorDialog(project, "Failed to create tag: ${e.message}", "Error")
-                }
-            }
-        }
+        close(OK_EXIT_CODE)
     }
 
-    fun getCreatedTag(): Tag? = createdTag
+    fun getTagName(): String = nameField.text.trim()
+
+    fun getSelectedColor(): String = selectedColor
 
     override fun getPreferredFocusedComponent(): JComponent? = nameField
 }
@@ -200,6 +180,7 @@ class EditTagDialog(private val project: Project, private val existingTag: Tag) 
 
     private var selectedColor: String = existingTag.color ?: PREDEFINED_COLORS.first().first
     private var updatedTag: Tag? = null
+    private var isSubmitting = false
 
     init {
         title = "Edit Tag"
@@ -284,6 +265,10 @@ class EditTagDialog(private val project: Project, private val existingTag: Tag) 
     }
 
     override fun doOKAction() {
+        if (isSubmitting) {
+            return
+        }
+
         val name = nameField.text.trim()
 
         if (name.isEmpty()) {
@@ -291,6 +276,9 @@ class EditTagDialog(private val project: Project, private val existingTag: Tag) 
             nameField.requestFocusInWindow()
             return
         }
+
+        setSubmitting(true)
+        LOG.info("Updating tag: ${existingTag.id}")
 
         // Update tag via API
         ApplicationManager.getApplication().executeOnPooledThread {
@@ -304,12 +292,14 @@ class EditTagDialog(private val project: Project, private val existingTag: Tag) 
                         close(OK_EXIT_CODE)
                     } else {
                         Messages.showErrorDialog(project, "Failed to update tag. Please try again.", "Error")
+                        setSubmitting(false)
                     }
                 }
             } catch (e: Exception) {
                 LOG.error("Failed to update tag", e)
                 ApplicationManager.getApplication().invokeLater {
                     Messages.showErrorDialog(project, "Failed to update tag: ${e.message}", "Error")
+                    setSubmitting(false)
                 }
             }
         }
@@ -318,6 +308,15 @@ class EditTagDialog(private val project: Project, private val existingTag: Tag) 
     fun getUpdatedTag(): Tag? = updatedTag
 
     override fun getPreferredFocusedComponent(): JComponent? = nameField
+
+    private fun setSubmitting(submitting: Boolean) {
+        isSubmitting = submitting
+        nameField.isEnabled = !submitting
+        colorButtons.forEach { it.isEnabled = !submitting }
+        isOKActionEnabled = !submitting
+        cancelAction.isEnabled = !submitting
+        setOKButtonText(if (submitting) "Saving..." else "Save")
+    }
 }
 
 /**
@@ -412,10 +411,24 @@ class ManageTagsDialog(private val project: Project) : DialogWrapper(true) {
     private fun createTag() {
         val dialog = CreateTagDialog(project)
         if (dialog.showAndGet()) {
-            val newTag = dialog.getCreatedTag()
-            if (newTag != null) {
-                tagListModel.addElement(newTag)
-                tags = tags + newTag
+            ApplicationManager.getApplication().executeOnPooledThread {
+                try {
+                    val apiService = SnipHiveApiService.getInstance()
+                    val newTag = apiService.createTag(project, dialog.getTagName(), dialog.getSelectedColor())
+
+                    ApplicationManager.getApplication().invokeLater {
+                        if (newTag != null) {
+                            loadTags()
+                        } else {
+                            Messages.showErrorDialog(project, "Failed to create tag. Please try again.", "Error")
+                        }
+                    }
+                } catch (e: Exception) {
+                    LOG.error("Failed to create tag", e)
+                    ApplicationManager.getApplication().invokeLater {
+                        Messages.showErrorDialog(project, "Failed to create tag: ${e.message}", "Error")
+                    }
+                }
             }
         }
     }
