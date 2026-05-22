@@ -19,6 +19,7 @@ import com.sniphive.idea.services.SnipHiveApiService
 import com.sniphive.idea.services.SecureCredentialStorage
 import com.sniphive.idea.editor.E2EEContentService
 import java.awt.BorderLayout
+import java.awt.FlowLayout
 import javax.swing.*
 
 /**
@@ -48,7 +49,7 @@ class CreateNoteDialog(private val project: Project) : DialogWrapper(true) {
     // UI Components
     private val titleField: JBTextField = JBTextField()
     private val contentArea: JBTextArea = JBTextArea()
-    private val tagsPanel: JPanel = JPanel(VerticalLayout(4))
+    private val tagsPanel: JPanel = JPanel(WrapLayout(FlowLayout.LEFT, JBUI.scale(8), JBUI.scale(4)))
     private val tagsScrollPane: JBScrollPane = JBScrollPane(tagsPanel)
     private val errorLabel: JBLabel = JBLabel()
     private val statusLabel: JBLabel = JBLabel()
@@ -158,10 +159,11 @@ class CreateNoteDialog(private val project: Project) : DialogWrapper(true) {
 
         // Tags panel with checkboxes
         tagsPanel.isOpaque = false
+        tagsPanel.border = JBUI.Borders.empty(2, 0)
         tagsScrollPane.border = BorderFactory.createEmptyBorder()
         tagsScrollPane.horizontalScrollBarPolicy = ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER
         tagsScrollPane.verticalScrollBarPolicy = ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED
-        tagsScrollPane.preferredSize = java.awt.Dimension(400, 100)
+        tagsScrollPane.preferredSize = java.awt.Dimension(500, 80)
 
         panel.add(tagsScrollPane)
 

@@ -12,6 +12,7 @@ import com.intellij.ui.components.panels.VerticalLayout
 import com.intellij.util.ui.JBUI
 import com.sniphive.idea.models.Tag
 import java.awt.BorderLayout
+import java.awt.FlowLayout
 import javax.swing.*
 
 /**
@@ -88,7 +89,7 @@ class CreateSnippetDialog(
     // UI Components
     private val titleField: JBTextField = JBTextField()
     private val languageComboBox: JComboBox<String> = JComboBox()
-    private val tagsPanel: JPanel = JPanel(VerticalLayout(4))
+    private val tagsPanel: JPanel = JPanel(WrapLayout(FlowLayout.LEFT, JBUI.scale(8), JBUI.scale(4)))
     private val tagsScrollPane: JBScrollPane = JBScrollPane(tagsPanel)
     private val visibilityCheckBox: JBCheckBox = JBCheckBox("Make this snippet public")
     private val contentPreview: JBTextArea = JBTextArea()
@@ -212,10 +213,11 @@ class CreateSnippetDialog(
 
         // Tags panel with checkboxes
         tagsPanel.isOpaque = false
+        tagsPanel.border = JBUI.Borders.empty(2, 0)
         tagsScrollPane.setBorder(BorderFactory.createEmptyBorder())
         tagsScrollPane.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER)
         tagsScrollPane.setVerticalScrollBarPolicy(ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED)
-        tagsScrollPane.setPreferredSize(java.awt.Dimension(400, 120))
+        tagsScrollPane.setPreferredSize(java.awt.Dimension(500, 80))
 
         panel.add(tagsScrollPane)
 
